@@ -1,0 +1,256 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>About - Scholarship Management System</title>
+    <link rel="icon" type="image/x-icon" href="/favicon.ico">
+    <link rel="stylesheet" href="/static/style.css">
+    <link rel="stylesheet" href="/static/about.css">
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>📚 About the Scholarship Management System</h1>
+            <p>AI-Powered Application Processing & Analysis Platform</p>
+        </div>
+        
+        <div class="content">
+            <!-- Purpose Section -->
+            <div class="section">
+                <h2>🎯 Purpose</h2>
+                <p>
+                    The Scholarship Management System is an advanced AI-powered platform designed to streamline 
+                    and enhance the scholarship application review process. It automates the analysis of scholarship 
+                    applications, providing consistent, objective evaluations while reducing manual review time by up to 80%.
+                </p>
+                <p>
+                    Built specifically for Women in Aviation International (WAI) scholarships, the system processes 
+                    applications for multiple scholarship programs including the Valerie Delaney Memorial Scholarship 
+                    and Evans Wings Scholarship, ensuring fair and thorough evaluation of each applicant.
+                </p>
+            </div>
+            
+            <!-- Key Features -->
+            <div class="section">
+                <h2>✨ Key Features</h2>
+                <div class="feature-grid">
+                    <div class="feature-card">
+                        <div class="icon">🤖</div>
+                        <h3>AI-Powered Analysis</h3>
+                        <p>Advanced language models analyze applications, essays, recommendations, and academic profiles</p>
+                    </div>
+                    
+                    <div class="feature-card">
+                        <div class="icon">🔒</div>
+                        <h3>Multi-Tenancy</h3>
+                        <p>Complete data isolation between scholarships with role-based access control</p>
+                    </div>
+                    
+                    <div class="feature-card">
+                        <div class="icon">📊</div>
+                        <h3>Comprehensive Scoring</h3>
+                        <p>Weighted evaluation across multiple criteria with transparent scoring methodology</p>
+                    </div>
+                    
+                    <div class="feature-card">
+                        <div class="icon">🔍</div>
+                        <h3>PII Protection</h3>
+                        <p>Automatic redaction of personally identifiable information using Microsoft Presidio</p>
+                    </div>
+                    
+                    <div class="feature-card">
+                        <div class="icon">💬</div>
+                        <h3>Interactive Chat</h3>
+                        <p>Natural language interface for querying application data and generating insights</p>
+                    </div>
+                    
+                    <div class="feature-card">
+                        <div class="icon">📈</div>
+                        <h3>Real-time Analytics</h3>
+                        <p>Statistics, score distributions, and comparative analysis across all applications</p>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Processing Pipeline -->
+            <div class="section">
+                <h2>⚙️ Data Processing Pipeline</h2>
+                <p>
+                    Each scholarship application goes through a comprehensive multi-stage processing pipeline 
+                    that ensures thorough evaluation and consistent scoring:
+                </p>
+                
+                <div class="pipeline-diagram">
+                    <div class="pipeline-step">
+                        <div class="step-number">1</div>
+                        <div class="step-content">
+                            <h4>📥 Data Ingestion</h4>
+                            <p>Applications are collected from the scholarship portal with all attachments (essays, recommendations, resumes, transcripts)</p>
+                        </div>
+                    </div>
+                    
+                    <div class="arrow-down">↓</div>
+                    
+                    <div class="pipeline-step">
+                        <div class="step-number">2</div>
+                        <div class="step-content">
+                            <h4>📄 Document Processing</h4>
+                            <p><strong>Attachment Agent:</strong> Extracts text from PDFs, redacts PII (emails, phone numbers, URLs), and prepares documents for analysis</p>
+                        </div>
+                    </div>
+                    
+                    <div class="arrow-down">↓</div>
+                    
+                    <div class="pipeline-step">
+                        <div class="step-number">3</div>
+                        <div class="step-content">
+                            <h4>📋 Application Analysis</h4>
+                            <p><strong>Application Agent (20% weight):</strong> Evaluates completeness, validity, contact information, educational background, and aviation experience</p>
+                        </div>
+                    </div>
+                    
+                    <div class="arrow-down">↓</div>
+                    
+                    <div class="pipeline-step">
+                        <div class="step-number">4</div>
+                        <div class="step-content">
+                            <h4>🎓 Academic Evaluation</h4>
+                            <p><strong>Academic Agent (25% weight):</strong> Analyzes academic performance, achievements, aviation certifications, work experience, and qualifications</p>
+                        </div>
+                    </div>
+                    
+                    <div class="arrow-down">↓</div>
+                    
+                    <div class="pipeline-step">
+                        <div class="step-number">5</div>
+                        <div class="step-content">
+                            <h4>✍️ Essay Assessment</h4>
+                            <p><strong>Essay Agent (30% weight):</strong> Evaluates aviation passion, career goals, personal character, leadership, and alignment with WAI values</p>
+                        </div>
+                    </div>
+                    
+                    <div class="arrow-down">↓</div>
+                    
+                    <div class="pipeline-step">
+                        <div class="step-number">6</div>
+                        <div class="step-content">
+                            <h4>💼 Recommendation Review</h4>
+                            <p><strong>Recommendation Agent (25% weight):</strong> Assesses recommender credibility, specific examples, character assessment, and professional qualities</p>
+                        </div>
+                    </div>
+                    
+                    <div class="arrow-down">↓</div>
+                    
+                    <div class="pipeline-step">
+                        <div class="step-number">7</div>
+                        <div class="step-content">
+                            <h4>📊 Score Aggregation</h4>
+                            <p>Final score calculated using weighted average: (Application × 0.20) + (Academic × 0.25) + (Essay × 0.30) + (Recommendation × 0.25)</p>
+                        </div>
+                    </div>
+                    
+                    <div class="arrow-down">↓</div>
+                    
+                    <div class="pipeline-step">
+                        <div class="step-number">8</div>
+                        <div class="step-content">
+                            <h4>📈 Summary Generation</h4>
+                            <p>Comprehensive summary report with statistics, score distributions, and rankings generated for review committee</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Technology Stack -->
+            <div class="section">
+                <h2>🛠️ Technology Stack</h2>
+                <div class="tech-stack">
+                    <h3>Core Technologies</h3>
+                    <div class="tech-list">
+                        <span class="tech-badge">Python 3.11+</span>
+                        <span class="tech-badge">FastAPI</span>
+                        <span class="tech-badge">WebSockets</span>
+                        <span class="tech-badge">BeeAI Framework</span>
+                        <span class="tech-badge">Ollama LLMs</span>
+                        <span class="tech-badge">Microsoft Presidio</span>
+                        <span class="tech-badge">PyPDF2</span>
+                        <span class="tech-badge">Pydantic</span>
+                    </div>
+                </div>
+                
+                <div class="tech-stack">
+                    <h3>Features</h3>
+                    <div class="tech-list">
+                        <span class="tech-badge">Multi-Tenancy</span>
+                        <span class="tech-badge">Role-Based Access Control</span>
+                        <span class="tech-badge">JWT Authentication</span>
+                        <span class="tech-badge">PII Redaction</span>
+                        <span class="tech-badge">Real-time Chat</span>
+                        <span class="tech-badge">RESTful API</span>
+                        <span class="tech-badge">Audit Logging</span>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- How to Use -->
+            <div class="section">
+                <h2>🚀 How to Use the System</h2>
+                <p><strong>For Administrators:</strong></p>
+                <ul style="margin-left: 20px; color: #666; line-height: 1.8;">
+                    <li>Process applications using: <code>python examples/process_applicants.py [scholarship] --max-applicants N</code></li>
+                    <li>Manage users with: <code>python admin/user_management.py</code></li>
+                    <li>View access matrix and validate configuration</li>
+                    <li>Monitor audit logs for security and compliance</li>
+                </ul>
+                
+                <p><strong>For Reviewers:</strong></p>
+                <ul style="margin-left: 20px; color: #666; line-height: 1.8;">
+                    <li>Log in with your assigned credentials</li>
+                    <li>Use the chat interface to query application data</li>
+                    <li>View top scores, statistics, and detailed analyses</li>
+                    <li>Access evaluation criteria and scoring methodology</li>
+                    <li>Generate comparative reports across applications</li>
+                </ul>
+            </div>
+            
+            <!-- Call to Action -->
+            <div class="cta-box">
+                <h3>🎓 Ready to Get Started?</h3>
+                <p>Explore example queries and learn how to interact with the system</p>
+                <a href="/examples" class="cta-button">View Query Examples →</a>
+            </div>
+            
+            <!-- Additional Info -->
+            <div class="tip-box">
+                <div class="tip-title">
+                    💡 Need Help?
+                </div>
+                <div class="tip-content">
+                    <ul>
+                        <li><strong>Examples:</strong> Visit <a href="/examples" style="color: #856404; text-decoration: underline;">/examples</a> for query examples and API reference</li>
+                        <li><strong>API Documentation:</strong> Access full API docs at <a href="/docs" style="color: #856404; text-decoration: underline;">/docs</a></li>
+                        <li><strong>Support:</strong> Contact your system administrator for assistance</li>
+                        <li><strong>Documentation:</strong> See <code>docs/</code> directory for comprehensive guides</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+        
+        <div class="footer">
+            <p>Scholarship Management System v2.0 | Multi-Tenancy Enabled</p>
+            <p>Developed by Pat G Cappelaere, IBM Federal Consulting</p>
+        </div>
+    </div>
+    
+    <script>
+        // Add keyboard shortcut (Ctrl/Cmd + K to close window)
+        document.addEventListener('keydown', (e) => {
+            if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
+                e.preventDefault();
+                window.close();
+            }
+        });
+    </script>
+</body>
+</html>

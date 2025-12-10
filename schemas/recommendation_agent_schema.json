@@ -1,0 +1,125 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Recommendation Agent Output Schema",
+  "description": "Schema for RecommendationAgent output structure",
+  "type": "object",
+  "properties": {
+    "summary": {
+      "type": "string"
+    },
+    "profile_features": {
+      "type": "object",
+      "properties": {
+        "recommendations": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "recommender_role": {
+                "type": "string"
+              },
+              "relationship_duration": {
+                "type": "string"
+              },
+              "key_strengths_mentioned": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "specific_examples": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "potential_concerns": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "overall_tone": {
+                "type": "string",
+                "enum": [
+                  "very_positive",
+                  "positive",
+                  "neutral",
+                  "mixed"
+                ]
+              }
+            }
+          }
+        },
+        "aggregate_analysis": {
+          "type": "object",
+          "properties": {
+            "common_themes": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "strength_consistency": {
+              "type": "string"
+            },
+            "depth_of_support": {
+              "type": "string"
+            }
+          }
+        }
+      }
+    },
+    "scores": {
+      "type": "object",
+      "properties": {
+        "average_support_strength_score": {
+          "type": [
+            "integer",
+            "number"
+          ]
+        },
+        "consistency_of_support_score": {
+          "type": [
+            "integer",
+            "number"
+          ]
+        },
+        "depth_of_endorsement_score": {
+          "type": [
+            "integer",
+            "number"
+          ]
+        },
+        "overall_score": {
+          "type": [
+            "integer",
+            "number"
+          ]
+        }
+      },
+      "required": [
+        "overall_score"
+      ]
+    },
+    "score_breakdown": {
+      "type": "object",
+      "properties": {
+        "average_support_strength_score_reasoning": {
+          "type": "string"
+        },
+        "consistency_of_support_score_reasoning": {
+          "type": "string"
+        },
+        "depth_of_endorsement_score_reasoning": {
+          "type": "string"
+        }
+      }
+    }
+  },
+  "required": [
+    "summary",
+    "profile_features",
+    "scores"
+  ]
+}

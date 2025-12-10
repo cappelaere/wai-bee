@@ -1,0 +1,71 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Attachment Agent Output Schema",
+  "description": "Schema for AttachmentAgent output structure - metadata for processed attachment files",
+  "type": "object",
+  "properties": {
+    "wai_number": {
+      "type": "string",
+      "description": "WAI application number"
+    },
+    "source_file": {
+      "type": "string",
+      "description": "Original filename of the attachment"
+    },
+    "output_file": {
+      "type": "string",
+      "description": "Output filename (.txt) after processing"
+    },
+    "source_file_size": {
+      "type": "integer",
+      "description": "Size of source file in bytes",
+      "minimum": 0
+    },
+    "original_length": {
+      "type": "integer",
+      "description": "Character count of original extracted text",
+      "minimum": 0
+    },
+    "redacted_length": {
+      "type": "integer",
+      "description": "Character count after PII removal",
+      "minimum": 0
+    },
+    "pii_types_found": {
+      "type": "array",
+      "description": "Types of PII detected and removed",
+      "items": {
+        "type": "string"
+      },
+      "default": []
+    },
+    "processed_date": {
+      "type": "string",
+      "format": "date-time",
+      "description": "ISO 8601 timestamp when file was processed"
+    },
+    "has_errors": {
+      "type": "boolean",
+      "description": "True if processing encountered errors",
+      "default": false
+    },
+    "errors": {
+      "type": "array",
+      "description": "List of error messages encountered during processing",
+      "items": {
+        "type": "string"
+      },
+      "default": []
+    }
+  },
+  "required": [
+    "wai_number",
+    "source_file",
+    "output_file",
+    "source_file_size",
+    "original_length",
+    "redacted_length",
+    "processed_date",
+    "has_errors"
+  ]
+}

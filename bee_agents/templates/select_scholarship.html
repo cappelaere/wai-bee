@@ -1,0 +1,298 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Select Scholarship - Scholarship Management System</title>
+    <link rel="icon" type="image/x-icon" href="/favicon.ico">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+        
+        .selection-container {
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 0 60px rgba(0, 0, 0, 0.3);
+            padding: 40px;
+            width: 100%;
+            max-width: 500px;
+        }
+        
+        .selection-header {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        
+        .selection-header .icon {
+            font-size: 48px;
+            margin-bottom: 10px;
+        }
+        
+        .selection-header h1 {
+            font-size: 24px;
+            color: #333;
+            margin-bottom: 10px;
+        }
+        
+        .selection-header p {
+            color: #666;
+            font-size: 14px;
+        }
+        
+        .user-info {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 25px;
+            text-align: center;
+        }
+        
+        .user-info .username {
+            font-weight: 600;
+            color: #333;
+            font-size: 16px;
+        }
+        
+        .user-info .role {
+            color: #666;
+            font-size: 14px;
+            margin-top: 5px;
+        }
+        
+        .scholarship-list {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            margin-bottom: 20px;
+        }
+        
+        .scholarship-card {
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            padding: 20px;
+            cursor: pointer;
+            transition: all 0.3s;
+            background: white;
+        }
+        
+        .scholarship-card:hover {
+            border-color: #667eea;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.2);
+        }
+        
+        .scholarship-card.selected {
+            border-color: #667eea;
+            background: linear-gradient(135deg, rgba(102, 126, 234, 0.1) 0%, rgba(118, 75, 162, 0.1) 100%);
+        }
+        
+        .scholarship-card .name {
+            font-size: 18px;
+            font-weight: 600;
+            color: #333;
+            margin-bottom: 5px;
+        }
+        
+        .scholarship-card .short-name {
+            font-size: 14px;
+            color: #666;
+        }
+        
+        .continue-button {
+            width: 100%;
+            padding: 14px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+        
+        .continue-button:hover:not(:disabled) {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+        }
+        
+        .continue-button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+        
+        .error-message {
+            background: #f8d7da;
+            color: #721c24;
+            padding: 12px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            font-size: 14px;
+            display: none;
+        }
+        
+        .error-message.show {
+            display: block;
+        }
+    </style>
+</head>
+<body>
+    <div class="selection-container">
+        <div class="selection-header">
+            <div class="icon">🎓</div>
+            <h1>Select Scholarship</h1>
+            <p>Choose which scholarship you want to work with</p>
+        </div>
+        
+        <div class="user-info">
+            <div class="username" id="username"></div>
+            <div class="role" id="role"></div>
+        </div>
+        
+        <div class="error-message" id="errorMessage"></div>
+        
+        <div class="scholarship-list" id="scholarshipList">
+            <!-- Scholarships will be loaded here -->
+        </div>
+        
+        <button class="continue-button" id="continueButton" disabled>
+            Continue to Chat
+        </button>
+    </div>
+    
+    <script>
+        let selectedScholarship = null;
+        let userInfo = null;
+        
+        // Load user info from sessionStorage
+        function loadUserInfo() {
+            const stored = sessionStorage.getItem('userInfo');
+            if (!stored) {
+                window.location.href = '/login';
+                return;
+            }
+            
+            userInfo = JSON.parse(stored);
+            document.getElementById('username').textContent = userInfo.username;
+            document.getElementById('role').textContent = `Role: ${userInfo.role || 'User'}`;
+            
+            // Load scholarships
+            loadScholarships();
+        }
+        
+        // Load available scholarships
+        async function loadScholarships() {
+            try {
+                const response = await fetch('/api/user/scholarships', {
+                    credentials: 'include'
+                });
+                
+                if (!response.ok) {
+                    throw new Error('Failed to load scholarships');
+                }
+                
+                const scholarships = await response.json();
+                displayScholarships(scholarships);
+                
+                // If only one scholarship, auto-select it
+                if (scholarships.length === 1) {
+                    selectScholarship(scholarships[0].id);
+                }
+            } catch (error) {
+                showError('Failed to load scholarships. Please try again.');
+            }
+        }
+        
+        // Display scholarships
+        function displayScholarships(scholarships) {
+            const list = document.getElementById('scholarshipList');
+            list.innerHTML = '';
+            
+            scholarships.forEach(scholarship => {
+                const card = document.createElement('div');
+                card.className = 'scholarship-card';
+                card.dataset.id = scholarship.id;
+                card.innerHTML = `
+                    <div class="name">${scholarship.name}</div>
+                    <div class="short-name">${scholarship.short_name}</div>
+                `;
+                
+                card.addEventListener('click', () => {
+                    selectScholarship(scholarship.id);
+                });
+                
+                list.appendChild(card);
+            });
+        }
+        
+        // Select a scholarship
+        function selectScholarship(scholarshipId) {
+            selectedScholarship = scholarshipId;
+            
+            // Update UI
+            document.querySelectorAll('.scholarship-card').forEach(card => {
+                if (card.dataset.id === scholarshipId) {
+                    card.classList.add('selected');
+                } else {
+                    card.classList.remove('selected');
+                }
+            });
+            
+            // Enable continue button
+            document.getElementById('continueButton').disabled = false;
+        }
+        
+        // Show error message
+        function showError(message) {
+            const errorDiv = document.getElementById('errorMessage');
+            errorDiv.textContent = message;
+            errorDiv.classList.add('show');
+        }
+        
+        // Continue to chat
+        document.getElementById('continueButton').addEventListener('click', async () => {
+            if (!selectedScholarship) return;
+            
+            try {
+                // Store selected scholarship
+                const response = await fetch('/api/user/select-scholarship', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    credentials: 'include',
+                    body: JSON.stringify({ scholarship: selectedScholarship })
+                });
+                
+                if (!response.ok) {
+                    throw new Error('Failed to set scholarship');
+                }
+                
+                // Store in sessionStorage for UI display
+                sessionStorage.setItem('selectedScholarship', selectedScholarship);
+                
+                // Redirect to chat
+                window.location.href = '/';
+            } catch (error) {
+                showError('Failed to set scholarship. Please try again.');
+            }
+        });
+        
+        // Initialize on page load
+        loadUserInfo();
+    </script>
+</body>
+</html>

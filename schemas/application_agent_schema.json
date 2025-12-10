@@ -1,0 +1,87 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Application Agent Output Schema",
+  "description": "Schema for ApplicationAgent output structure including applicant data, validation, and scoring",
+  "type": "object",
+  "properties": {
+    "wai_number": {
+      "type": "string",
+      "description": "WAI application number (unique identifier)"
+    },
+    "name": {
+      "type": "string",
+      "description": "Full name of the applicant"
+    },
+    "city": {
+      "type": "string",
+      "description": "City of residence"
+    },
+    "state": {
+      "type": ["string", "null"],
+      "description": "State of residence (for US applicants only)"
+    },
+    "country": {
+      "type": "string",
+      "description": "Country of residence"
+    },
+    "source_file": {
+      "type": "string",
+      "description": "Source application file name"
+    },
+    "processed_date": {
+      "type": "string",
+      "format": "date-time",
+      "description": "ISO 8601 timestamp when processed"
+    },
+    "validation_errors": {
+      "type": "array",
+      "description": "List of validation errors found",
+      "items": {
+        "type": "string"
+      },
+      "default": []
+    },
+    "has_errors": {
+      "type": "boolean",
+      "description": "True if validation errors exist",
+      "default": false
+    },
+    "attachment_files_checked": {
+      "type": "array",
+      "description": "List of attachment files checked with details",
+      "items": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "Attachment filename"
+          },
+          "size": {
+            "type": "integer",
+            "description": "File size in bytes",
+            "minimum": 0
+          },
+          "valid": {
+            "type": "boolean",
+            "description": "True if file is valid"
+          },
+          "error": {
+            "type": ["string", "null"],
+            "description": "Error message if file is invalid"
+          }
+        },
+        "required": ["name", "size", "valid"]
+      },
+      "default": []
+    }
+  },
+  "required": [
+    "wai_number",
+    "name",
+    "city",
+    "country",
+    "source_file",
+    "processed_date",
+    "has_errors"
+  ]
+}

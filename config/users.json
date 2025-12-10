@@ -1,0 +1,72 @@
+{
+  "version": "1.0",
+  "description": "User and scholarship configuration for multi-tenancy",
+  "users": {
+    "admin": {
+      "password_env": "ADMIN_PASSWORD",
+      "role": "admin",
+      "scholarships": ["*"],
+      "permissions": ["read", "write", "admin"],
+      "email": "admin@example.com",
+      "full_name": "System Administrator",
+      "enabled": true
+    },
+    "delaney_manager": {
+      "password_env": "DELANEY_PASSWORD",
+      "role": "manager",
+      "scholarships": ["Delaney_Wings"],
+      "permissions": ["read", "write"],
+      "email": "delaney.manager@example.com",
+      "full_name": "Delaney Scholarship Manager",
+      "enabled": true
+    },
+    "evans_manager": {
+      "password_env": "EVANS_PASSWORD",
+      "role": "manager",
+      "scholarships": ["Evans_Wings"],
+      "permissions": ["read", "write"],
+      "email": "evans.manager@example.com",
+      "full_name": "Evans Scholarship Manager",
+      "enabled": true
+    },
+    "user": {
+      "password_env": "USER_PASSWORD",
+      "role": "reviewer",
+      "scholarships": ["Delaney_Wings"],
+      "permissions": ["read"],
+      "email": "user@example.com",
+      "full_name": "General User (Backward Compatibility)",
+      "enabled": true
+    }
+  },
+  "scholarships": {
+    "Delaney_Wings": {
+      "name": "Delaney Wings Scholarship",
+      "short_name": "Delaney",
+      "data_folder": "data/Delaney_Wings",
+      "enabled": true,
+      "description": "Delaney Wings Scholarship Program"
+    },
+    "Evans_Wings": {
+      "name": "Evans Wings Scholarship",
+      "short_name": "Evans",
+      "data_folder": "data/Evans_Wings",
+      "enabled": true,
+      "description": "Evans Wings Scholarship Program"
+    }
+  },
+  "roles": {
+    "admin": {
+      "description": "Full system access, can manage all scholarships",
+      "default_permissions": ["read", "write", "admin"]
+    },
+    "manager": {
+      "description": "Can read and write to assigned scholarships",
+      "default_permissions": ["read", "write"]
+    },
+    "reviewer": {
+      "description": "Read-only access to assigned scholarships",
+      "default_permissions": ["read"]
+    }
+  }
+}

@@ -1,0 +1,123 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Application Analysis Schema",
+  "description": "Schema for application completeness and validity analysis with scoring",
+  "type": "object",
+  "properties": {
+    "wai_number": {
+      "type": "string",
+      "description": "WAI application number"
+    },
+    "summary": {
+      "type": "string",
+      "description": "Summary of application quality"
+    },
+    "scores": {
+      "type": "object",
+      "description": "Score breakdown by component",
+      "properties": {
+        "completeness_score": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 30,
+          "description": "Field completeness score (0-30 points)"
+        },
+        "validity_score": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 30,
+          "description": "Data validity score (0-30 points)"
+        },
+        "attachment_score": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 40,
+          "description": "Attachment completeness score (0-40 points)"
+        },
+        "overall_score": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 100,
+          "description": "Total application score (0-100 points)"
+        }
+      },
+      "required": [
+        "completeness_score",
+        "validity_score",
+        "attachment_score",
+        "overall_score"
+      ]
+    },
+    "score_breakdown": {
+      "type": "object",
+      "description": "Detailed reasoning for each score",
+      "properties": {
+        "completeness_reasoning": {
+          "type": "string",
+          "description": "Explanation of completeness score"
+        },
+        "validity_reasoning": {
+          "type": "string",
+          "description": "Explanation of validity score"
+        },
+        "attachment_reasoning": {
+          "type": "string",
+          "description": "Explanation of attachment score"
+        }
+      },
+      "required": [
+        "completeness_reasoning",
+        "validity_reasoning",
+        "attachment_reasoning"
+      ]
+    },
+    "completeness_issues": {
+      "type": "array",
+      "description": "List of missing or incomplete fields",
+      "items": {
+        "type": "string"
+      },
+      "default": []
+    },
+    "validity_issues": {
+      "type": "array",
+      "description": "List of data validity concerns",
+      "items": {
+        "type": "string"
+      },
+      "default": []
+    },
+    "attachment_status": {
+      "type": "string",
+      "description": "Summary of attachment completeness"
+    },
+    "processed_date": {
+      "type": "string",
+      "format": "date-time",
+      "description": "ISO 8601 timestamp when analysis was performed"
+    },
+    "source_file": {
+      "type": "string",
+      "description": "Source application file name"
+    },
+    "model_used": {
+      "type": "string",
+      "description": "LLM model used for analysis"
+    },
+    "criteria_used": {
+      "type": "string",
+      "description": "Path to criteria file used for scoring"
+    }
+  },
+  "required": [
+    "wai_number",
+    "summary",
+    "scores",
+    "score_breakdown",
+    "attachment_status",
+    "processed_date",
+    "source_file",
+    "model_used",
+    "criteria_used"
+  ]
+}

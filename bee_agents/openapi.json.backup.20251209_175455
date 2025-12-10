@@ -1,0 +1,1228 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Scholarship Analysis API",
+    "description": "REST API for accessing scholarship application analysis data",
+    "version": "1.0.0"
+  },
+  "servers": [
+    {
+      "url": "http://localhost:8200",
+      "description": "Development server (default port)"
+    }
+  ],
+  "paths": {
+    "/": {
+      "get": {
+        "tags": [
+          "Health"
+        ],
+        "summary": "Root",
+        "description": "Root endpoint - API health check.",
+        "operationId": "root__get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      }
+    },
+    "/health": {
+      "get": {
+        "tags": [
+          "Health"
+        ],
+        "summary": "Health Check",
+        "description": "Health check endpoint.",
+        "operationId": "health_check_health_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      }
+    },
+    "/openapi.yml": {
+      "get": {
+        "tags": [
+          "Documentation"
+        ],
+        "summary": "Get Openapi Yaml",
+        "description": "Download OpenAPI specification as YAML file.",
+        "operationId": "get_openapi_yaml_openapi_yml_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      }
+    },
+    "/openapi.json": {
+      "get": {
+        "tags": [
+          "Documentation"
+        ],
+        "summary": "Get Openapi Json",
+        "description": "Download OpenAPI specification as JSON file.",
+        "operationId": "get_openapi_json_openapi_json_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      }
+    },
+    "/scholarship": {
+      "get": {
+        "tags": [
+          "Scholarship"
+        ],
+        "summary": "Get Scholarship Info",
+        "description": "Get scholarship information and details including name, description, eligibility, requirements, and other relevant information.",
+        "operationId": "get_scholarship_info_scholarship_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "name": {
+                      "type": "string",
+                      "description": "Full name of the scholarship"
+                    },
+                    "short_name": {
+                      "type": "string",
+                      "description": "Short name of the scholarship"
+                    },
+                    "description": {
+                      "type": "string",
+                      "description": "Detailed description of the scholarship"
+                    },
+                    "award_amount": {
+                      "type": "string",
+                      "description": "Scholarship award amount"
+                    },
+                    "award_period": {
+                      "type": "string",
+                      "description": "Academic period for the award"
+                    },
+                    "eligibility": {
+                      "type": "object",
+                      "description": "Eligibility requirements"
+                    },
+                    "application_requirements": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      },
+                      "description": "List of required application materials"
+                    },
+                    "selection_criteria": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      },
+                      "description": "Criteria used for selecting recipients"
+                    },
+                    "contact": {
+                      "type": "object",
+                      "description": "Contact information"
+                    },
+                    "deadline": {
+                      "type": "string",
+                      "description": "Application deadline"
+                    },
+                    "notification_date": {
+                      "type": "string",
+                      "description": "Date when recipients are notified"
+                    },
+                    "year": {
+                      "type": "integer",
+                      "description": "Scholarship year"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Scholarship information not found"
+          },
+          "503": {
+            "description": "Service not initialized"
+          }
+        }
+      }
+    },
+    "/top_scores": {
+      "get": {
+        "tags": [
+          "Scores"
+        ],
+        "summary": "Get Top Scores",
+        "description": "Get top scoring applications.\n\nArgs:\n    limit: Maximum number of results to return (1-100)\n    \nReturns:\n    TopScoresResponse with list of top scoring applications",
+        "operationId": "get_top_scores_top_scores_get",
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 100,
+              "minimum": 1,
+              "description": "Number of top scores to return",
+              "default": 10,
+              "title": "Limit"
+            },
+            "description": "Number of top scores to return"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TopScoresResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/score": {
+      "get": {
+        "tags": [
+          "Scores"
+        ],
+        "summary": "Get Individual Score",
+        "description": "Get score for a specific application.\n\nArgs:\n    wai_number: WAI application number\n    \nReturns:\n    ScoreResponse with application scores and applicant information",
+        "operationId": "get_individual_score_score_get",
+        "parameters": [
+          {
+            "name": "wai_number",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Wai Number",
+              "description": "WAI application number"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ScoreResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/statistics": {
+      "get": {
+        "tags": [
+          "Statistics"
+        ],
+        "summary": "Get Statistics",
+        "description": "Get statistics for all applications.\n\nReturns:\n    StatisticsResponse with aggregated statistics",
+        "operationId": "get_statistics_statistics_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StatisticsResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/application": {
+      "get": {
+        "tags": [
+          "Analysis"
+        ],
+        "summary": "Get Application Analysis",
+        "description": "Get detailed application analysis.\n\nArgs:\n    wai_number: WAI application number\n    \nReturns:\n    ApplicationAnalysisResponse with detailed analysis",
+        "operationId": "get_application_analysis_application_get",
+        "parameters": [
+          {
+            "name": "wai_number",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Wai Number",
+              "description": "WAI application number"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApplicationAnalysisResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/academic": {
+      "get": {
+        "tags": [
+          "Analysis"
+        ],
+        "summary": "Get Academic Analysis",
+        "description": "Get academic analysis for an application.\n\nArgs:\n    wai_number: WAI application number\n    \nReturns:\n    AcademicAnalysisResponse with academic analysis",
+        "operationId": "get_academic_analysis_academic_get",
+        "parameters": [
+          {
+            "name": "wai_number",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Wai Number",
+              "description": "WAI application number"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AcademicAnalysisResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/essay": {
+      "get": {
+        "tags": [
+          "Analysis"
+        ],
+        "summary": "Get Essay Analysis",
+        "description": "Get essay analysis for an application.\n\nArgs:\n    wai_number: WAI application number\n    \nReturns:\n    Essay analysis including summary, profile features, scores, and score breakdown",
+        "operationId": "get_essay_analysis_essay_get",
+        "parameters": [
+          {
+            "name": "wai_number",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Wai Number",
+              "description": "WAI application number"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "description": "Essay analysis with motivation, goals, character assessment"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/recommendation": {
+      "get": {
+        "tags": [
+          "Analysis"
+        ],
+        "summary": "Get Recommendation Analysis",
+        "description": "Get recommendation analysis for an application.\n\nArgs:\n    wai_number: WAI application number\n    \nReturns:\n    Recommendation analysis including summary, profile features, scores, and score breakdown",
+        "operationId": "get_recommendation_analysis_recommendation_get",
+        "parameters": [
+          {
+            "name": "wai_number",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Wai Number",
+              "description": "WAI application number"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "description": "Recommendation analysis with support strength, consistency, and depth assessment"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/attachments": {
+      "get": {
+        "tags": [
+          "Attachments"
+        ],
+        "summary": "List Attachments",
+        "description": "List all attachment files for an application with processing metadata.\n\nArgs:\n    wai_number: WAI application number\n    \nReturns:\n    Attachment files with download URLs, processing status, and PII information",
+        "operationId": "list_attachments_attachments_get",
+        "parameters": [
+          {
+            "name": "wai_number",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Wai Number",
+              "description": "WAI application number"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "wai_number": {
+                      "type": "string"
+                    },
+                    "count": {
+                      "type": "integer"
+                    },
+                    "files": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "filename": {
+                            "type": "string"
+                          },
+                          "path": {
+                            "type": "string"
+                          },
+                          "size": {
+                            "type": "integer"
+                          },
+                          "download_url": {
+                            "type": "string"
+                          },
+                          "processed": {
+                            "type": "boolean"
+                          },
+                          "text_file": {
+                            "type": "string",
+                            "nullable": true
+                          },
+                          "pii_types_found": {
+                            "type": "array",
+                            "items": {
+                              "type": "string"
+                            }
+                          },
+                          "processed_date": {
+                            "type": "string",
+                            "nullable": true
+                          }
+                        }
+                      }
+                    },
+                    "processing_summary": {
+                      "type": "object",
+                      "nullable": true,
+                      "properties": {
+                        "total_files": {
+                          "type": "integer"
+                        },
+                        "total_original_chars": {
+                          "type": "integer"
+                        },
+                        "total_redacted_chars": {
+                          "type": "integer"
+                        },
+                        "total_reduction_chars": {
+                          "type": "integer"
+                        },
+                        "reduction_percentage": {
+                          "type": "number"
+                        },
+                        "pii_types_found": {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/attachments/text/{scholarship}/{wai_number}/{filename}": {
+      "get": {
+        "tags": [
+          "Attachments"
+        ],
+        "summary": "Download Text Attachment",
+        "description": "Download a processed text attachment file.\n\nArgs:\n    scholarship: Scholarship name\n    wai_number: WAI application number\n    filename: Text filename (e.g., 101127_30_1.txt)\n    \nReturns:\n    Text file download response",
+        "operationId": "download_text_attachment_attachments_text__scholarship___wai_number___filename__get",
+        "parameters": [
+          {
+            "name": "scholarship",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Scholarship"
+            }
+          },
+          {
+            "name": "wai_number",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Wai Number"
+            }
+          },
+          {
+            "name": "filename",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Filename"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/attachments/{scholarship}/{wai_number}/{filename}": {
+      "get": {
+        "tags": [
+          "Attachments"
+        ],
+        "summary": "Download PDF Attachment",
+        "description": "Download original PDF attachment file (admin only).\n\nArgs:\n    scholarship: Scholarship name\n    wai_number: WAI application number\n    filename: PDF filename\n    \nReturns:\n    PDF file download response",
+        "operationId": "download_attachment_attachments__scholarship___wai_number___filename__get",
+        "parameters": [
+          {
+            "name": "scholarship",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Scholarship"
+            }
+          },
+          {
+            "name": "wai_number",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Wai Number"
+            }
+          },
+          {
+            "name": "filename",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Filename"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/pdf": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "AcademicAnalysisResponse": {
+        "properties": {
+          "wai_number": {
+            "type": "string",
+            "title": "Wai Number",
+            "description": "WAI application number"
+          },
+          "summary": {
+            "type": "string",
+            "title": "Summary",
+            "description": "Summary of academic performance"
+          },
+          "profile_features": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Profile Features",
+            "description": "Academic profile features"
+          },
+          "scores": {
+            "anyOf": [
+              {
+                "additionalProperties": {
+                  "type": "integer"
+                },
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Scores",
+            "description": "Academic scores"
+          },
+          "score_breakdown": {
+            "anyOf": [
+              {
+                "additionalProperties": {
+                  "type": "string"
+                },
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Score Breakdown",
+            "description": "Score reasoning"
+          },
+          "processed_date": {
+            "type": "string",
+            "title": "Processed Date",
+            "description": "When the analysis was processed"
+          },
+          "source_file": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source File",
+            "description": "Source file"
+          },
+          "model_used": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Model Used",
+            "description": "Model used for analysis"
+          }
+        },
+        "type": "object",
+        "required": [
+          "wai_number",
+          "summary",
+          "profile_features",
+          "processed_date"
+        ],
+        "title": "AcademicAnalysisResponse",
+        "description": "Response model for academic analysis."
+      },
+      "ApplicationAnalysisResponse": {
+        "properties": {
+          "wai_number": {
+            "type": "string",
+            "title": "Wai Number",
+            "description": "WAI application number"
+          },
+          "summary": {
+            "type": "string",
+            "title": "Summary",
+            "description": "Summary of application quality"
+          },
+          "scores": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "type": "object",
+            "title": "Scores",
+            "description": "Score breakdown"
+          },
+          "score_breakdown": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "type": "object",
+            "title": "Score Breakdown",
+            "description": "Detailed reasoning for scores"
+          },
+          "completeness_issues": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Completeness Issues",
+            "description": "List of completeness issues"
+          },
+          "validity_issues": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Validity Issues",
+            "description": "List of validity issues"
+          },
+          "attachment_status": {
+            "type": "string",
+            "title": "Attachment Status",
+            "description": "Summary of attachment completeness"
+          },
+          "processed_date": {
+            "type": "string",
+            "title": "Processed Date",
+            "description": "When the analysis was processed"
+          },
+          "source_file": {
+            "type": "string",
+            "title": "Source File",
+            "description": "Source application file"
+          }
+        },
+        "type": "object",
+        "required": [
+          "wai_number",
+          "summary",
+          "scores",
+          "score_breakdown",
+          "completeness_issues",
+          "validity_issues",
+          "attachment_status",
+          "processed_date",
+          "source_file"
+        ],
+        "title": "ApplicationAnalysisResponse",
+        "description": "Response model for application analysis."
+      },
+      "EssayAnalysisResponse": {
+        "properties": {
+          "wai_number": {
+            "type": "string",
+            "title": "Wai Number",
+            "description": "WAI application number"
+          },
+          "essay_number": {
+            "type": "integer",
+            "title": "Essay Number",
+            "description": "Essay number (1 or 2)"
+          },
+          "summary": {
+            "type": "string",
+            "title": "Summary",
+            "description": "Summary of essay quality"
+          },
+          "strengths": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Strengths",
+            "description": "Essay strengths"
+          },
+          "weaknesses": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Weaknesses",
+            "description": "Essay weaknesses"
+          },
+          "score": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Score",
+            "description": "Essay score if available"
+          },
+          "processed_date": {
+            "type": "string",
+            "title": "Processed Date",
+            "description": "When the analysis was processed"
+          }
+        },
+        "type": "object",
+        "required": [
+          "wai_number",
+          "essay_number",
+          "summary",
+          "strengths",
+          "weaknesses",
+          "processed_date"
+        ],
+        "title": "EssayAnalysisResponse",
+        "description": "Response model for essay analysis."
+      },
+      "HTTPValidationError": {
+        "properties": {
+          "detail": {
+            "items": {
+              "$ref": "#/components/schemas/ValidationError"
+            },
+            "type": "array",
+            "title": "Detail"
+          }
+        },
+        "type": "object",
+        "title": "HTTPValidationError"
+      },
+      "RecommendationAnalysisResponse": {
+        "properties": {
+          "wai_number": {
+            "type": "string",
+            "title": "Wai Number",
+            "description": "WAI application number"
+          },
+          "recommendation_number": {
+            "type": "integer",
+            "title": "Recommendation Number",
+            "description": "Recommendation number (1 or 2)"
+          },
+          "summary": {
+            "type": "string",
+            "title": "Summary",
+            "description": "Summary of recommendation quality"
+          },
+          "strengths": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Strengths",
+            "description": "Recommendation strengths"
+          },
+          "concerns": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Concerns",
+            "description": "Recommendation concerns"
+          },
+          "score": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Score",
+            "description": "Recommendation score if available"
+          },
+          "processed_date": {
+            "type": "string",
+            "title": "Processed Date",
+            "description": "When the analysis was processed"
+          }
+        },
+        "type": "object",
+        "required": [
+          "wai_number",
+          "recommendation_number",
+          "summary",
+          "strengths",
+          "concerns",
+          "processed_date"
+        ],
+        "title": "RecommendationAnalysisResponse",
+        "description": "Response model for recommendation analysis."
+      },
+      "ScoreResponse": {
+        "properties": {
+          "wai_number": {
+            "type": "string",
+            "title": "Wai Number",
+            "description": "WAI application number"
+          },
+          "name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name",
+            "description": "Applicant name"
+          },
+          "city": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "City",
+            "description": "Applicant city"
+          },
+          "state": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "State",
+            "description": "Applicant state (US only)"
+          },
+          "country": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Country",
+            "description": "Applicant country"
+          },
+          "overall_score": {
+            "type": "integer",
+            "title": "Overall Score",
+            "description": "Overall score (0-100)"
+          },
+          "completeness_score": {
+            "type": "integer",
+            "title": "Completeness Score",
+            "description": "Completeness score (0-30)"
+          },
+          "validity_score": {
+            "type": "integer",
+            "title": "Validity Score",
+            "description": "Validity score (0-30)"
+          },
+          "attachment_score": {
+            "type": "integer",
+            "title": "Attachment Score",
+            "description": "Attachment score (0-40)"
+          },
+          "summary": {
+            "type": "string",
+            "title": "Summary",
+            "description": "Brief summary of application quality"
+          }
+        },
+        "type": "object",
+        "required": [
+          "wai_number",
+          "overall_score",
+          "completeness_score",
+          "validity_score",
+          "attachment_score",
+          "summary"
+        ],
+        "title": "ScoreResponse",
+        "description": "Response model for individual score."
+      },
+      "StatisticsResponse": {
+        "properties": {
+          "scholarship": {
+            "type": "string",
+            "title": "Scholarship",
+            "description": "Scholarship name"
+          },
+          "total_applications": {
+            "type": "integer",
+            "title": "Total Applications",
+            "description": "Total number of applications"
+          },
+          "average_score": {
+            "type": "number",
+            "title": "Average Score",
+            "description": "Average overall score"
+          },
+          "median_score": {
+            "type": "number",
+            "title": "Median Score",
+            "description": "Median overall score"
+          },
+          "min_score": {
+            "type": "integer",
+            "title": "Min Score",
+            "description": "Minimum score"
+          },
+          "max_score": {
+            "type": "integer",
+            "title": "Max Score",
+            "description": "Maximum score"
+          },
+          "score_distribution": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "type": "object",
+            "title": "Score Distribution",
+            "description": "Score ranges and counts"
+          }
+        },
+        "type": "object",
+        "required": [
+          "scholarship",
+          "total_applications",
+          "average_score",
+          "median_score",
+          "min_score",
+          "max_score",
+          "score_distribution"
+        ],
+        "title": "StatisticsResponse",
+        "description": "Response model for scholarship statistics."
+      },
+      "TopScoresResponse": {
+        "properties": {
+          "scholarship": {
+            "type": "string",
+            "title": "Scholarship",
+            "description": "Scholarship name"
+          },
+          "total_applications": {
+            "type": "integer",
+            "title": "Total Applications",
+            "description": "Total number of applications"
+          },
+          "top_scores": {
+            "items": {
+              "$ref": "#/components/schemas/ScoreResponse"
+            },
+            "type": "array",
+            "title": "Top Scores",
+            "description": "List of top scoring applications"
+          }
+        },
+        "type": "object",
+        "required": [
+          "scholarship",
+          "total_applications",
+          "top_scores"
+        ],
+        "title": "TopScoresResponse",
+        "description": "Response model for top scores."
+      },
+      "ValidationError": {
+        "properties": {
+          "loc": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ]
+            },
+            "type": "array",
+            "title": "Location"
+          },
+          "msg": {
+            "type": "string",
+            "title": "Message"
+          },
+          "type": {
+            "type": "string",
+            "title": "Error Type"
+          }
+        },
+        "type": "object",
+        "required": [
+          "loc",
+          "msg",
+          "type"
+        ],
+        "title": "ValidationError"
+      }
+    }
+  }
+}

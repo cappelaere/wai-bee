@@ -1,0 +1,107 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Personal Agent Output Schema",
+  "description": "Schema for PersonalAgent output structure",
+  "type": "object",
+  "properties": {
+    "summary": {
+      "type": "string"
+    },
+    "profile_features": {
+      "type": "object",
+      "properties": {
+        "motivation_summary": {
+          "type": ["string", "null"]
+        },
+        "career_goals_summary": {
+          "type": ["string", "null"]
+        },
+        "aviation_path_stage": {
+          "type": ["string", "null"]
+        },
+        "community_service_summary": {
+          "type": ["string", "null"]
+        },
+        "leadership_roles": {
+          "type": "array",
+          "items": {
+            "type": ["string", "null"]
+          }
+        },
+        "personal_character_indicators": {
+          "type": "array",
+          "items": {
+            "type": ["string", "null"]
+          }
+        },
+        "alignment_with_wai": {
+          "type": ["string", "null"]
+        },
+        "unique_strengths": {
+          "type": "array",
+          "items": {
+            "type": ["string", "null"]
+          }
+        }
+      }
+    },
+    "scores": {
+      "type": "object",
+      "properties": {
+        "motivation_score": {
+          "type": [
+            "integer",
+            "number", 
+            "null"
+          ]
+        },
+        "goals_clarity_score": {
+          "type": [
+            "integer",
+            "number", 
+            "null"
+          ]
+        },
+        "character_service_leadership_score": {
+          "type": [
+            "integer",
+            "number", 
+            "null"
+          ]
+        },
+        "overall_score": {
+          "type": [
+            "integer",
+            "number",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "overall_score"
+      ]
+    },
+    "score_breakdown": {
+      "type": "object",
+      "properties": {
+        "motivation_score_reasoning": {
+          "type": "string"
+        },
+        "goals_clarity_score_reasoning": {
+          "type": "string"
+        },
+        "character_service_leadership_score_reasoning": {
+          "type": "string"
+        },
+        "overall_score_reasoning": {
+          "type": "string"
+        }
+      }
+    }
+  },
+  "required": [
+    "summary",
+    "profile_features",
+    "scores"
+  ]
+}
