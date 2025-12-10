@@ -7,8 +7,12 @@
   },
   "servers": [
     {
+      "url": "http://api:8200",
+      "description": "API server (Docker network)"
+    },
+    {
       "url": "http://localhost:8200",
-      "description": "Development server (default port)"
+      "description": "Development server (local)"
     }
   ],
   "paths": {

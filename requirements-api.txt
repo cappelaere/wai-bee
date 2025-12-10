@@ -1,0 +1,21 @@
+# Minimal requirements for API server
+# Core FastAPI and server
+fastapi==0.124.0
+uvicorn==0.38.0
+pydantic==2.12.5
+pydantic-settings==2.12.0
+starlette==0.50.0
+
+# Python utilities
+python-dotenv==1.2.1
+python-multipart==0.0.20
+
+# Data handling
+pandas==2.3.3
+numpy==2.2.6
+
+# Logging
+colorlog==6.10.1
+
+# Environment
+typing_extensions==4.15.0

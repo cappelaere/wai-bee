@@ -288,20 +288,28 @@ async def get_criteria_file(
 
 @app.get("/health", tags=["Health"])
 async def health_check(
-    scholarship: str = Query(..., description="Scholarship name (e.g., 'Delaney_Wings' or 'Evans_Wings')")
+    scholarship: Optional[str] = Query(None, description="Scholarship name (optional)")
 ):
-    """Health check endpoint for a specific scholarship.
+    """Health check endpoint. Optionally check a specific scholarship.
     
     Args:
-        scholarship: Name of the scholarship
+        scholarship: Name of the scholarship (optional)
     """
-    data_service = get_data_service(scholarship)
-    
-    return {
-        "status": "healthy",
-        "scholarship": data_service.scholarship_name,
-        "total_applications": len(data_service.get_all_wai_numbers())
-    }
+    if scholarship:
+        # Check specific scholarship
+        data_service = get_data_service(scholarship)
+        return {
+            "status": "healthy",
+            "scholarship": data_service.scholarship_name,
+            "total_applications": len(data_service.get_all_wai_numbers())
+        }
+    else:
+        # General health check
+        return {
+            "status": "healthy",
+            "available_scholarships": list(data_services.keys()),
+            "total_scholarships": len(data_services)
+        }
 
 
 @app.get("/openapi.yml", tags=["Documentation"])

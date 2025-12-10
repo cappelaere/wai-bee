@@ -1,0 +1,78 @@
+services:
+  # Scholarship API Server (handles all scholarships)
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile-api
+    container_name: wai-api
+    ports:
+      - "8200:8200"
+    environment:
+      - OUTPUT_DIR=outputs
+      - PORT=8200
+      - LOG_LEVEL=INFO
+      - PRIMARY_MODEL=ollama/llama3.2:1b
+      - FALLBACK_MODEL=ollama/llama3:latest
+      - MAX_RETRIES=3
+      - LLM_TEMPERATURE=0.1
+      - LLM_MAX_TOKENS=4000
+    env_file:
+      - .env
+    volumes:
+      - ./bee_agents:/app/bee_agents:ro
+      - ./data:/app/data:ro
+      - ./outputs:/app/outputs
+      - ./logs:/app/logs
+      - ./config:/app/config:ro
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8200/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    networks:
+      - wai-network
+
+  # Chat Frontend
+  chat:
+    build:
+      context: .
+      dockerfile: Dockerfile-chat
+    container_name: wai-chat
+    ports:
+      - "8100:8100"
+    environment:
+      - HOST=0.0.0.0
+      - PORT=8100
+      - CHAT_MODEL=anthropic:claude-sonnet-4-20250514
+      - API_SERVER_URL=http://api:8200
+    env_file:
+      - .env
+    volumes:
+      - ./bee_agents:/app/bee_agents:ro
+      - ./data:/app/data:ro
+      - ./outputs:/app/outputs:ro
+      - ./logs:/app/logs
+      - ./config:/app/config:ro
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8100/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    networks:
+      - wai-network
+    depends_on:
+      - api
+
+networks:
+  wai-network:
+    driver: bridge
+
+volumes:
+  outputs:
+  logs:
+
+# Made with Bob
