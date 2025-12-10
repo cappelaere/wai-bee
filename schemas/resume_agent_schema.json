@@ -1,0 +1,118 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Academic Agent Output Schema",
+  "description": "Schema for AcademicAgent output structure",
+  "type": "object",
+  "properties": {
+    "summary": {
+      "type": "string"
+    },
+    "profile_features": {
+      "type": "object",
+      "properties": {
+        "current_school_name": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "program": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "education_level": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "gpa": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "academic_awards": {
+          "type": "array",
+          "items": {
+            "type": ["string", "null"]
+          }
+        },
+        "relevant_courses": {
+          "type": "array",
+          "items": {
+            "type": ["string", "null"]
+          }
+        },
+        "academic_trajectory": {
+          "type": ["string", "null"]
+        },
+        "strengths": {
+          "type": "array",
+          "items": {
+            "type": ["string", "null"]
+          }
+        },
+        "areas_for_improvement": {
+          "type": "array",
+          "items": {
+            "type": ["string", "null"]
+          }
+        }
+      }
+    },
+    "scores": {
+      "type": "object",
+      "properties": {
+        "academic_performance_score": {
+          "type": [
+            "integer",
+            "number"
+          ]
+        },
+        "academic_relevance_score": {
+          "type": [
+            "integer",
+            "number"
+          ]
+        },
+        "academic_readiness_score": {
+          "type": [
+            "integer",
+            "number"
+          ]
+        },
+        "overall_score": {
+          "type": [
+            "integer",
+            "number"
+          ]
+        }
+      },
+      "required": [
+        "overall_score"
+      ]
+    },
+    "score_breakdown": {
+      "type": "object",
+      "properties": {
+        "academic_performance_score_reasoning": {
+          "type": "string"
+        },
+        "academic_relevance_score_reasoning": {
+          "type": "string"
+        },
+        "academic_readiness_score_reasoning": {
+          "type": "string"
+        }
+      }
+    }
+  },
+  "required": [
+    "summary",
+    "profile_features",
+    "scores"
+  ]
+}

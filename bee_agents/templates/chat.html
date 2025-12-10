@@ -1,0 +1,467 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Scholarship Management Application</title>
+    <link rel="icon" type="image/x-icon" href="/favicon.ico">
+    <link rel="stylesheet" href="/static/chat.css">
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+</head>
+<body>
+    <div class="chat-container">
+        <div class="chat-header">
+            <button class="about-button" id="aboutButton" title="About this system">
+                ℹ️ About
+            </button>
+            <button class="help-button" id="helpButton" title="Show example queries">
+                💡 Examples
+            </button>
+            <div class="connection-status disconnected" id="connectionStatus">Disconnected</div>
+            <h1>🎓 Scholarship Management System</h1>
+            <p id="userScholarships">Loading user information...</p>
+        </div>
+        
+        <div class="chat-messages" id="chatMessages">
+            <!-- User Profile Card -->
+            <div class="user-profile-card" id="userProfileCard">
+                <div class="profile-header">
+                    <div class="profile-avatar" id="profileAvatar">👤</div>
+                    <div class="profile-info">
+                        <h3 id="profileUsername">Loading...</h3>
+                        <span class="profile-role" id="profileRole">User</span>
+                    </div>
+                    <button class="profile-logout-btn" id="profileLogoutBtn" title="Logout">
+                        🚪 Logout
+                    </button>
+                </div>
+                <div class="profile-details">
+                    <div class="profile-detail-item">
+                        <span class="detail-label">Role:</span>
+                        <span class="detail-value" id="profileRoleDetail">Loading...</span>
+                    </div>
+                    <div class="profile-detail-item">
+                        <span class="detail-label">Access:</span>
+                        <span class="detail-value" id="profileAccessDetail">Loading...</span>
+                    </div>
+                    <div class="profile-detail-item">
+                        <span class="detail-label">Current Scholarship:</span>
+                        <select class="scholarship-selector" id="scholarshipSelector" disabled>
+                            <option value="">Loading...</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="message system">
+                <div class="message-content">
+                    Welcome! Ask me about scholarship applications, scores, or analyses.
+                </div>
+            </div>
+            
+            <div class="example-queries" id="exampleQueries">
+                <h3>💡 Try these example queries:</h3>
+                <div class="example-query" data-query="Show me the top 10 scholarship applicants">
+                    📊 Show me the top 10 scholarship applicants
+                </div>
+                <div class="example-query" data-query="What are the overall statistics for this scholarship?">
+                    📈 What are the overall statistics for this scholarship?
+                </div>
+                <div class="example-query" data-query="Get details for application 108128">
+                    📋 Get details for application 108128
+                </div>
+                <div class="example-query" data-query="Show me the academic analysis for WAI 101127">
+                    🎓 Show me the academic analysis for WAI 101127
+                </div>
+                <div class="example-query" data-query="List attachments for application 108128">
+                    📎 List attachments for application 108128
+                </div>
+                <div class="example-query" data-query="What is the essay analysis for WAI 102250?">
+                    ✍️ What is the essay analysis for WAI 102250?
+                </div>
+                <div class="example-query" data-query="Show recommendation analysis for WAI 110153">
+                    💼 Show recommendation analysis for WAI 110153
+                </div>
+            </div>
+        </div>
+        
+        <div class="chat-input-container">
+            <form class="chat-input-form" id="chatForm">
+                <input 
+                    type="text" 
+                    class="chat-input" 
+                    id="messageInput" 
+                    placeholder="Ask about applications, scores, or analyses..."
+                    autocomplete="off"
+                    disabled
+                >
+                <button type="submit" class="send-button" id="sendButton" disabled>Send</button>
+            </form>
+        </div>
+    </div>
+    
+    <script>
+        let ws = null;
+        const chatMessages = document.getElementById('chatMessages');
+        const messageInput = document.getElementById('messageInput');
+        const sendButton = document.getElementById('sendButton');
+        const chatForm = document.getElementById('chatForm');
+        const connectionStatus = document.getElementById('connectionStatus');
+        
+        // Display user information and scholarships
+        function displayUserInfo() {
+            const userInfoStr = sessionStorage.getItem('userInfo');
+            const userScholarshipsEl = document.getElementById('userScholarships');
+            
+            if (userInfoStr) {
+                try {
+                    const userInfo = JSON.parse(userInfoStr);
+                    const username = userInfo.username || 'User';
+                    const role = userInfo.role || 'user';
+                    const scholarships = userInfo.scholarships || [];
+                    const permissions = userInfo.permissions || [];
+                    
+                    // Format scholarship names
+                    let scholarshipText = '';
+                    if (scholarships.includes('*')) {
+                        scholarshipText = 'All Scholarships (Admin Access)';
+                    } else if (scholarships.length > 0) {
+                        const scholarshipNames = scholarships.map(s => {
+                            if (s === 'Delaney_Wings') return 'Delaney Wings';
+                            if (s === 'Evans_Wings') return 'Evans Wings';
+                            return s;
+                        });
+                        scholarshipText = scholarshipNames.join(' & ');
+                    } else {
+                        scholarshipText = 'No Scholarships Assigned';
+                    }
+                    
+                    // Create role badge
+                    const roleBadge = role === 'admin' ? '👑 Admin' :
+                                     role === 'manager' ? '👤 Manager' :
+                                     '👁️ Reviewer';
+                    
+                    // Update header
+                    userScholarshipsEl.innerHTML = `
+                        <span style="opacity: 0.9;">${roleBadge} • ${username}</span> |
+                        <strong>${scholarshipText}</strong>
+                    `;
+                    
+                    // Update profile card
+                    updateProfileCard(username, role, scholarshipText, permissions);
+                } catch (e) {
+                    console.error('Error parsing user info:', e);
+                    userScholarshipsEl.textContent = 'Managing: Delaney Wings & Evans Wings Scholarships';
+                }
+            } else {
+                userScholarshipsEl.textContent = 'Managing: Delaney Wings & Evans Wings Scholarships';
+            }
+        }
+        
+        // Update profile card with user information
+        function updateProfileCard(username, role, scholarshipText, permissions) {
+            // Set avatar emoji based on role
+            const avatarEmoji = role === 'admin' ? '👑' :
+                               role === 'manager' ? '👤' :
+                               '👁️';
+            document.getElementById('profileAvatar').textContent = avatarEmoji;
+            
+            // Set username
+            document.getElementById('profileUsername').textContent = username;
+            
+            // Set role badge
+            const roleBadge = role === 'admin' ? '👑 Admin' :
+                             role === 'manager' ? '👤 Manager' :
+                             '👁️ Reviewer';
+            document.getElementById('profileRole').textContent = roleBadge;
+            
+            // Set role detail with description
+            const roleDescriptions = {
+                'admin': 'Administrator - Full system access',
+                'manager': 'Manager - Read and write access',
+                'reviewer': 'Reviewer - Read-only access'
+            };
+            document.getElementById('profileRoleDetail').textContent = roleDescriptions[role] || role;
+            
+            // Set access permissions
+            const accessText = permissions.length > 0 ? permissions.join(', ') : 'Read access';
+            document.getElementById('profileAccessDetail').textContent = accessText;
+            
+            // Load scholarship selector
+            loadScholarshipSelector();
+        }
+        
+        // Load scholarships into selector dropdown
+        async function loadScholarshipSelector() {
+            try {
+                const response = await fetch('/api/user/scholarships', {
+                    credentials: 'include'
+                });
+                
+                if (!response.ok) {
+                    throw new Error('Failed to load scholarships');
+                }
+                
+                const scholarships = await response.json();
+                const selector = document.getElementById('scholarshipSelector');
+                const selectedScholarship = sessionStorage.getItem('selectedScholarship');
+                
+                // Clear existing options
+                selector.innerHTML = '';
+                
+                // Add scholarship options
+                scholarships.forEach(scholarship => {
+                    const option = document.createElement('option');
+                    option.value = scholarship.id;
+                    option.textContent = scholarship.name;
+                    if (scholarship.id === selectedScholarship) {
+                        option.selected = true;
+                    }
+                    selector.appendChild(option);
+                });
+                
+                // Enable selector
+                selector.disabled = false;
+                
+                // Add change handler
+                selector.addEventListener('change', handleScholarshipChange);
+                
+            } catch (error) {
+                console.error('Error loading scholarships:', error);
+                const selector = document.getElementById('scholarshipSelector');
+                selector.innerHTML = '<option value="">Error loading scholarships</option>';
+            }
+        }
+        
+        // Handle scholarship selection change
+        async function handleScholarshipChange(event) {
+            const newScholarship = event.target.value;
+            
+            try {
+                const response = await fetch('/api/user/select-scholarship', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    credentials: 'include',
+                    body: JSON.stringify({ scholarship: newScholarship })
+                });
+                
+                if (!response.ok) {
+                    throw new Error('Failed to change scholarship');
+                }
+                
+                // Update sessionStorage
+                sessionStorage.setItem('selectedScholarship', newScholarship);
+                
+                // Show notification
+                addSystemMessage(`Switched to ${event.target.options[event.target.selectedIndex].text}`);
+                
+                // Reconnect WebSocket to use new scholarship context
+                if (ws) {
+                    ws.close();
+                }
+                setTimeout(connectWebSocket, 500);
+                
+            } catch (error) {
+                console.error('Error changing scholarship:', error);
+                addSystemMessage('Failed to change scholarship. Please try again.');
+                // Revert selection
+                const selectedScholarship = sessionStorage.getItem('selectedScholarship');
+                event.target.value = selectedScholarship;
+            }
+        }
+        
+        // Add system message to chat
+        function addSystemMessage(message) {
+            const messageDiv = document.createElement('div');
+            messageDiv.className = 'message system';
+            messageDiv.innerHTML = `<div class="message-content">${message}</div>`;
+            chatMessages.appendChild(messageDiv);
+            chatMessages.scrollTop = chatMessages.scrollHeight;
+        }
+        
+        // Display user info on page load
+        displayUserInfo();
+        
+        function connectWebSocket() {
+            const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+            ws = new WebSocket(`${protocol}//${window.location.host}/ws`);
+            
+            ws.onopen = () => {
+                console.log('WebSocket connected');
+                connectionStatus.textContent = 'Connected';
+                connectionStatus.className = 'connection-status connected';
+                messageInput.disabled = false;
+                sendButton.disabled = false;
+                addSystemMessage('Connected to agent');
+            };
+            
+            ws.onmessage = (event) => {
+                const data = JSON.parse(event.data);
+                
+                if (data.type === 'response') {
+                    removeTypingIndicator();
+                    addAgentMessage(data.message);
+                } else if (data.type === 'error') {
+                    removeTypingIndicator();
+                    addSystemMessage(`Error: ${data.message}`);
+                }
+            };
+            
+            ws.onerror = (error) => {
+                console.error('WebSocket error:', error);
+                addSystemMessage('Connection error occurred');
+            };
+            
+            ws.onclose = () => {
+                console.log('WebSocket disconnected');
+                connectionStatus.textContent = 'Disconnected';
+                connectionStatus.className = 'connection-status disconnected';
+                messageInput.disabled = true;
+                sendButton.disabled = true;
+                addSystemMessage('Disconnected from agent');
+                
+                // Attempt to reconnect after 3 seconds
+                setTimeout(connectWebSocket, 3000);
+            };
+        }
+        
+        function addMessage(content, type) {
+            const messageDiv = document.createElement('div');
+            messageDiv.className = `message ${type}`;
+            
+            const contentDiv = document.createElement('div');
+            contentDiv.className = 'message-content';
+            contentDiv.innerHTML = content;
+            
+            messageDiv.appendChild(contentDiv);
+            chatMessages.appendChild(messageDiv);
+            chatMessages.scrollTop = chatMessages.scrollHeight;
+        }
+        
+        function addUserMessage(text) {
+            addMessage(escapeHtml(text), 'user');
+        }
+        
+        function addAgentMessage(text) {
+            // Use marked.js to convert markdown to HTML
+            const html = marked.parse(text);
+            addMessage(html, 'agent');
+        }
+        
+        function addSystemMessage(text) {
+            addMessage(escapeHtml(text), 'system');
+        }
+        
+        function addTypingIndicator() {
+            const indicator = document.createElement('div');
+            indicator.className = 'message agent';
+            indicator.id = 'typingIndicator';
+            
+            const content = document.createElement('div');
+            content.className = 'typing-indicator active';
+            content.innerHTML = '<span></span><span></span><span></span>';
+            
+            indicator.appendChild(content);
+            chatMessages.appendChild(indicator);
+            chatMessages.scrollTop = chatMessages.scrollHeight;
+        }
+        
+        function removeTypingIndicator() {
+            const indicator = document.getElementById('typingIndicator');
+            if (indicator) {
+                indicator.remove();
+            }
+        }
+        
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+        
+        chatForm.addEventListener('submit', (e) => {
+            e.preventDefault();
+            
+            const message = messageInput.value.trim();
+            if (!message || !ws || ws.readyState !== WebSocket.OPEN) {
+                return;
+            }
+            
+            addUserMessage(message);
+            addTypingIndicator();
+            
+            ws.send(JSON.stringify({
+                type: 'message',
+                content: message
+            }));
+            
+            messageInput.value = '';
+            
+            // Hide example queries after first message
+            const exampleQueries = document.getElementById('exampleQueries');
+            if (exampleQueries) {
+                exampleQueries.style.display = 'none';
+            }
+        });
+        
+        // Handle about button click to open about page in new window
+        const aboutButton = document.getElementById('aboutButton');
+        aboutButton.addEventListener('click', () => {
+            // Open about page in a new window
+            window.open('/about', 'About', 'width=1200,height=800,scrollbars=yes,resizable=yes');
+        });
+        
+        // Handle help button click to open examples page in new window
+        const helpButton = document.getElementById('helpButton');
+        const exampleQueries = document.getElementById('exampleQueries');
+        
+        helpButton.addEventListener('click', () => {
+            // Open examples page in a new window
+            window.open('/examples', 'Examples', 'width=1200,height=800,scrollbars=yes,resizable=yes');
+        });
+        
+        // Hide inline examples by default since we now have a dedicated page
+        if (exampleQueries) {
+            exampleQueries.style.display = 'none';
+        }
+        
+        // Handle example query clicks
+        document.addEventListener('click', (e) => {
+            if (e.target.classList.contains('example-query')) {
+                const query = e.target.getAttribute('data-query');
+                if (query && ws && ws.readyState === WebSocket.OPEN) {
+                    messageInput.value = query;
+                    chatForm.dispatchEvent(new Event('submit'));
+                }
+            }
+        });
+        
+        // Handle logout button (profile card only)
+        const profileLogoutBtn = document.getElementById('profileLogoutBtn');
+        profileLogoutBtn.addEventListener('click', handleLogout);
+        
+        // Logout handler function
+        async function handleLogout() {
+            try {
+                await fetch('/logout', { method: 'POST' });
+                // Clear cookie and session storage
+                document.cookie = 'auth_token=; path=/; max-age=0';
+                sessionStorage.removeItem('userInfo');
+                // Redirect to login
+                window.location.href = '/login';
+            } catch (error) {
+                console.error('Logout error:', error);
+                // Force redirect anyway
+                document.cookie = 'auth_token=; path=/; max-age=0';
+                sessionStorage.removeItem('userInfo');
+                window.location.href = '/login';
+            }
+        }
+        
+        // Connect on page load
+        connectWebSocket();
+    </script>
+</body>
+</html>

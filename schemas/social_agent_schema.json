@@ -1,0 +1,211 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Social Agent Output Schema",
+  "description": "Schema for SocialAgent output structure",
+  "type": "object",
+  "properties": {
+    "summary": {
+      "type": "string"
+    },
+    "profile_features": {
+      "type": "object",
+      "properties": {
+        "platforms_found": {
+          "type": "object",
+          "properties": {
+            "facebook": {
+              "type": [
+                "object",
+                "boolean"
+              ],
+              "oneOf": [
+                {
+                  "type": "object",
+                  "properties": {
+                    "present": {
+                      "type": "boolean"
+                    },
+                    "link": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "handle": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "evidence": {
+                      "type": "string"
+                    }
+                  }
+                },
+                {
+                  "type": "boolean"
+                }
+              ]
+            },
+            "instagram": {
+              "type": [
+                "object",
+                "boolean"
+              ],
+              "oneOf": [
+                {
+                  "type": "object",
+                  "properties": {
+                    "present": {
+                      "type": "boolean"
+                    },
+                    "link": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "handle": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "evidence": {
+                      "type": "string"
+                    }
+                  }
+                },
+                {
+                  "type": "boolean"
+                }
+              ]
+            },
+            "tiktok": {
+              "type": [
+                "object",
+                "boolean"
+              ],
+              "oneOf": [
+                {
+                  "type": "object",
+                  "properties": {
+                    "present": {
+                      "type": "boolean"
+                    },
+                    "link": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "handle": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "evidence": {
+                      "type": "string"
+                    }
+                  }
+                },
+                {
+                  "type": "boolean"
+                }
+              ]
+            },
+            "linkedin": {
+              "type": [
+                "object",
+                "boolean"
+              ],
+              "oneOf": [
+                {
+                  "type": "object",
+                  "properties": {
+                    "present": {
+                      "type": "boolean"
+                    },
+                    "link": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "handle": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "evidence": {
+                      "type": "string"
+                    }
+                  }
+                },
+                {
+                  "type": "boolean"
+                }
+              ]
+            }
+          }
+        },
+        "total_platforms": {
+          "type": "integer"
+        },
+        "has_professional_presence": {
+          "type": "boolean"
+        },
+        "notes": {
+          "type": "string"
+        }
+      }
+    },
+    "scores": {
+      "type": "object",
+      "properties": {
+        "social_presence_score": {
+          "type": [
+            "integer",
+            "number"
+          ]
+        },
+        "professional_presence_score": {
+          "type": [
+            "integer",
+            "number"
+          ]
+        },
+        "overall_score": {
+          "type": [
+            "integer",
+            "number"
+          ]
+        }
+      },
+      "required": [
+        "overall_score"
+      ]
+    },
+    "score_breakdown": {
+      "type": "object",
+      "properties": {
+        "social_presence_score_reasoning": {
+          "type": "string"
+        },
+        "professional_presence_score_reasoning": {
+          "type": "string"
+        },
+        "overall_score_reasoning": {
+          "type": "string"
+        }
+      }
+    }
+  },
+  "required": [
+    "summary",
+    "profile_features",
+    "scores"
+  ]
+}

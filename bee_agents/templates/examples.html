@@ -1,0 +1,232 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Query Examples - Scholarship Management System</title>
+    <link rel="icon" type="image/x-icon" href="/favicon.ico">
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>💡 Query Examples</h1>
+            <p>Learn how to interact with the Scholarship Management System</p>
+        </div>
+        
+        <div class="content">
+            <!-- Basic Queries Section -->
+            <div class="section">
+                <h2>📊 Basic Queries</h2>
+                <p>Start with these simple queries to explore scholarship data:</p>
+                
+                <div class="example-grid">
+                    <div class="example-card" onclick="copyQuery(this)">
+                        <div class="icon">📊</div>
+                        <div class="query">Show me the top 10 scholarship applicants</div>
+                        <div class="description">Get the highest-scoring applications</div>
+                    </div>
+                    
+                    <div class="example-card" onclick="copyQuery(this)">
+                        <div class="icon">📈</div>
+                        <div class="query">What are the overall statistics for this scholarship?</div>
+                        <div class="description">View aggregated statistics and score distribution</div>
+                    </div>
+                    
+                    <div class="example-card" onclick="copyQuery(this)">
+                        <div class="icon">🔍</div>
+                        <div class="query">How many applications have been processed?</div>
+                        <div class="description">Get total application count</div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Application Details Section -->
+            <div class="section">
+                <h2>📋 Application Details</h2>
+                <p>Query specific applications by WAI number:</p>
+                
+                <div class="example-grid">
+                    <div class="example-card" onclick="copyQuery(this)">
+                        <div class="icon">📋</div>
+                        <div class="query">Get details for application 108128</div>
+                        <div class="description">View complete application analysis</div>
+                    </div>
+                    
+                    <div class="example-card" onclick="copyQuery(this)">
+                        <div class="icon">⭐</div>
+                        <div class="query">What is the score for WAI 101127?</div>
+                        <div class="description">Get overall and component scores</div>
+                    </div>
+                    
+                    <div class="example-card" onclick="copyQuery(this)">
+                        <div class="icon">📊</div>
+                        <div class="query">Show me applications with scores above 80</div>
+                        <div class="description">Filter by score threshold</div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Analysis Queries Section -->
+            <div class="section">
+                <h2>🎓 Detailed Analysis</h2>
+                <p>Access specific analysis components:</p>
+                
+                <div class="example-grid">
+                    <div class="example-card" onclick="copyQuery(this)">
+                        <div class="icon">🎓</div>
+                        <div class="query">Show me the academic analysis for WAI 101127</div>
+                        <div class="description">View academic profile and achievements</div>
+                    </div>
+                    
+                    <div class="example-card" onclick="copyQuery(this)">
+                        <div class="icon">✍️</div>
+                        <div class="query">What is the essay analysis for WAI 102250?</div>
+                        <div class="description">Review essay evaluations</div>
+                    </div>
+                    
+                    <div class="example-card" onclick="copyQuery(this)">
+                        <div class="icon">💼</div>
+                        <div class="query">Show recommendation analysis for WAI 110153</div>
+                        <div class="description">View recommendation letter assessments</div>
+                    </div>
+                    
+                    <div class="example-card" onclick="copyQuery(this)">
+                        <div class="icon">📎</div>
+                        <div class="query">List attachments for application 108128</div>
+                        <div class="description">See all submitted documents</div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Scholarship Information Section -->
+            <div class="section">
+                <h2>🎓 Scholarship Information</h2>
+                <p>Learn about the scholarship and its requirements:</p>
+                
+                <div class="example-grid">
+                    <div class="example-card" onclick="copyQuery(this)">
+                        <div class="icon">📖</div>
+                        <div class="query">Tell me about this scholarship</div>
+                        <div class="description">Get scholarship description and details</div>
+                    </div>
+                    
+                    <div class="example-card" onclick="copyQuery(this)">
+                        <div class="icon">📋</div>
+                        <div class="query">What are the eligibility requirements?</div>
+                        <div class="description">View eligibility criteria</div>
+                    </div>
+                    
+                    <div class="example-card" onclick="copyQuery(this)">
+                        <div class="icon">📏</div>
+                        <div class="query">List all evaluation criteria for this scholarship</div>
+                        <div class="description">See all criteria files available</div>
+                    </div>
+                    
+                    <div class="example-card" onclick="copyQuery(this)">
+                        <div class="icon">🎓</div>
+                        <div class="query">Show me the academic criteria</div>
+                        <div class="description">View academic evaluation standards</div>
+                    </div>
+                    
+                    <div class="example-card" onclick="copyQuery(this)">
+                        <div class="icon">✍️</div>
+                        <div class="query">What are the essay criteria?</div>
+                        <div class="description">See essay evaluation guidelines</div>
+                    </div>
+                    
+                    <div class="example-card" onclick="copyQuery(this)">
+                        <div class="icon">💼</div>
+                        <div class="query">Show me the recommendation criteria</div>
+                        <div class="description">View recommendation letter standards</div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Configuration Queries Section -->
+            <div class="section">
+                <h2>⚙️ Configuration & Scoring</h2>
+                <p>Understand the evaluation process:</p>
+                
+                <div class="example-grid">
+                    <div class="example-card" onclick="copyQuery(this)">
+                        <div class="icon">⚖️</div>
+                        <div class="query">Show me the agent scoring weights</div>
+                        <div class="description">See how scores are calculated</div>
+                    </div>
+                    
+                    <div class="example-card" onclick="copyQuery(this)">
+                        <div class="icon">📊</div>
+                        <div class="query">How are applications scored?</div>
+                        <div class="description">Learn about the scoring methodology</div>
+                    </div>
+                    
+                    <div class="example-card" onclick="copyQuery(this)">
+                        <div class="icon">🔍</div>
+                        <div class="query">What does the application agent evaluate?</div>
+                        <div class="description">Learn about application completeness checks</div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Tips Section -->
+            <div class="tip-box">
+                <div class="tip-title">
+                    💡 Pro Tips
+                </div>
+                <div class="tip-content">
+                    <ul>
+                        <li>Click any example card to copy the query to your clipboard</li>
+                        <li>Replace WAI numbers in examples with actual application IDs</li>
+                        <li>Use natural language - the AI understands context</li>
+                        <li>Ask follow-up questions to drill deeper into data</li>
+                        <li>Access full API documentation at <code>/docs</code></li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+        
+        <div class="footer">
+            <p>Scholarship Management System v2.0 | Multi-Tenancy Enabled</p>
+            <p>For support, contact your system administrator</p>
+        </div>
+    </div>
+    
+    <script>
+        function copyQuery(element) {
+            const query = element.querySelector('.query').textContent;
+            
+            // Copy to clipboard
+            navigator.clipboard.writeText(query).then(() => {
+                // Visual feedback
+                const originalBg = element.style.background;
+                element.style.background = '#4caf50';
+                element.style.color = 'white';
+                
+                // Show copied message
+                const description = element.querySelector('.description');
+                const originalText = description.textContent;
+                description.textContent = '✓ Copied to clipboard!';
+                
+                // Reset after 1 second
+                setTimeout(() => {
+                    element.style.background = originalBg;
+                    element.style.color = '';
+                    description.textContent = originalText;
+                }, 1000);
+            }).catch(err => {
+                console.error('Failed to copy:', err);
+                alert('Query: ' + query);
+            });
+        }
+        
+        // Add keyboard shortcut (Ctrl/Cmd + K to close window)
+        document.addEventListener('keydown', (e) => {
+            if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
+                e.preventDefault();
+                window.close();
+            }
+        });
+    </script>
+</body>
+</html>
