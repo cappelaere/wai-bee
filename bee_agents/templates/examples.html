@@ -196,8 +196,30 @@
         function copyQuery(element) {
             const query = element.querySelector('.query').textContent;
             
-            // Copy to clipboard
-            navigator.clipboard.writeText(query).then(() => {
+            // Copy to clipboard with fallback for non-HTTPS
+            const copyToClipboard = (text) => {
+                if (navigator.clipboard && navigator.clipboard.writeText) {
+                    return navigator.clipboard.writeText(text);
+                } else {
+                    // Fallback for non-HTTPS contexts
+                    const textArea = document.createElement('textarea');
+                    textArea.value = text;
+                    textArea.style.position = 'fixed';
+                    textArea.style.left = '-999999px';
+                    document.body.appendChild(textArea);
+                    textArea.select();
+                    try {
+                        document.execCommand('copy');
+                        document.body.removeChild(textArea);
+                        return Promise.resolve();
+                    } catch (err) {
+                        document.body.removeChild(textArea);
+                        return Promise.reject(err);
+                    }
+                }
+            };
+            
+            copyToClipboard(query).then(() => {
                 // Visual feedback
                 const originalBg = element.style.background;
                 element.style.background = '#4caf50';

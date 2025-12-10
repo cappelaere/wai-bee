@@ -20,7 +20,7 @@ Example:
 
 import argparse
 import uvicorn
-from .api import initialize_service, app
+from .api import initialize_services, app
 
 
 def main():
@@ -79,13 +79,13 @@ Examples:
     print(f"API documentation: http://{args.host}:{args.port}/docs")
     print()
     
-    # Initialize the data service
+    # Initialize the data services
     try:
-        initialize_service(args.scholarship, args.output_dir)
-        print(f"✓ Data service initialized successfully")
+        initialize_services(args.output_dir)
+        print(f"✓ Data services initialized successfully")
         print()
     except Exception as e:
-        print(f"✗ Failed to initialize data service: {e}")
+        print(f"✗ Failed to initialize data services: {e}")
         return 1
     
     # Run the server
