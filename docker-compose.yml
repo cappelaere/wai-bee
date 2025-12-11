@@ -1,29 +1,5 @@
 services:
-  # Ollama - Local LLM Server
-  ollama:
-    image: ollama/ollama:latest
-    container_name: wai-ollama
-    ports:
-      - "11434:11434"
-    volumes:
-      - ollama-data:/root/.ollama
-    restart: unless-stopped
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:11434/api/tags"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 60s
-    networks:
-      - wai-network
-    # Uncomment if you have NVIDIA GPU
-    # deploy:
-    #   resources:
-    #     reservations:
-    #       devices:
-    #         - driver: nvidia
-    #           count: 1
-    #           capabilities: [gpu]
+
 
   # Scholarship API Server (handles all scholarships)
   api:
@@ -60,6 +36,12 @@ services:
       start_period: 40s
     networks:
       - wai-network
+    # Development-friendly server with auto-reload
+    command: >
+      uvicorn bee_agents.api:app
+      --host 0.0.0.0
+      --port 8200
+      --reload
 
   # Chat Frontend
   chat:
@@ -73,7 +55,9 @@ services:
     environment:
       - HOST=0.0.0.0
       - PORT=8100
-      - CHAT_MODEL=anthropic:claude-sonnet-4-20250514
+      - CHAT_MODEL=ollama:llama3.2:1b
+      - ORCHESTRATOR_MODEL=ollama:llama3.2:1b
+      - OLLAMA_API_BASE=http://host.docker.internal:11434
       - API_SERVER_URL=http://api:8200
     env_file:
       - .env
@@ -94,6 +78,12 @@ services:
       - wai-network
     depends_on:
       - api
+    # Development-friendly server with auto-reload
+    command: >
+      uvicorn bee_agents.chat_api:app
+      --host 0.0.0.0
+      --port 8100
+      --reload
 
 networks:
   wai-network:
@@ -102,6 +92,3 @@ networks:
 volumes:
   outputs:
   logs:
-  ollama-data:
-
-# Made with Bob
