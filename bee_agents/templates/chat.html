@@ -10,17 +10,21 @@
 </head>
 <body>
     <div class="chat-container">
-        <div class="chat-header">
+                <div class="chat-header">
             <button class="about-button" id="aboutButton" title="About this system">
                 ℹ️ About
             </button>
             <button class="help-button" id="helpButton" title="Show example queries">
                 💡 Examples
             </button>
+            <button class="observability-button" id="observabilityButton" title="Open Observability Dashboard" style="display: none;">
+                📊 Observability
+            </button>
             <div class="connection-status disconnected" id="connectionStatus">Disconnected</div>
             <h1>🎓 Scholarship Management System</h1>
             <p id="userScholarships">Loading user information...</p>
-        </div>
+        </div></search>
+</search_and_replace>
         
         <div class="chat-messages" id="chatMessages">
             <!-- User Profile Card -->
@@ -186,6 +190,14 @@
             // Set access permissions
             const accessText = permissions.length > 0 ? permissions.join(', ') : 'Read access';
             document.getElementById('profileAccessDetail').textContent = accessText;
+            
+            // Show Observability button for admin users (in header)
+            const observabilityBtn = document.getElementById('observabilityButton');
+            if (role === 'admin') {
+                observabilityBtn.style.display = 'inline-block';
+            } else {
+                observabilityBtn.style.display = 'none';
+            }
             
             // Load scholarship selector
             loadScholarshipSelector();
@@ -436,6 +448,33 @@
                     chatForm.dispatchEvent(new Event('submit'));
                 }
             }
+        });
+        
+        // Handle Observability button (admin only - in header)
+        const observabilityButton = document.getElementById('observabilityButton');
+        observabilityButton.addEventListener('click', () => {
+            // Open window immediately to avoid popup blocker
+            const newWindow = window.open('about:blank', '_blank');
+            
+            // Fetch observability dashboard URL from API
+            fetch('/api/user/profile')
+                .then(response => {
+                    if (response.ok) {
+                        return response.json();
+                    }
+                    throw new Error('Failed to fetch profile');
+                })
+                .then(profile => {
+                    const dashboardUrl = profile.observability_dashboard ||
+                                        (window.location.protocol + '//' + window.location.hostname + ':3000');
+                    newWindow.location.href = dashboardUrl;
+                })
+                .catch(error => {
+                    console.error('Error fetching dashboard URL:', error);
+                    // Fallback to default URL
+                    const langfuseUrl = window.location.protocol + '//' + window.location.hostname + ':3000';
+                    newWindow.location.href = langfuseUrl;
+                });
         });
         
         // Handle logout button (profile card only)

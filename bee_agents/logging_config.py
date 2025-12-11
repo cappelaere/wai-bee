@@ -23,7 +23,7 @@ def setup_logging(name) -> logging.Logger:
     """
     # Configure root logger
     logging.basicConfig(
-        level=logging.DEBUG,
+        level=logging.INFO,
         format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
         force=True
     )
@@ -33,7 +33,7 @@ def setup_logging(name) -> logging.Logger:
     logging.getLogger("httpx").setLevel(logging.WARNING)
     logging.getLogger("httpcore").setLevel(logging.WARNING)
     logging.getLogger("uvicorn.access").setLevel(logging.WARNING)
-    logging.getLogger("uvicorn.error").setLevel(logging.INFO)
+    logging.getLogger("uvicorn.error").setLevel(logging.WARNING)  # Suppress WebSocket connection noise
     
     # Return logger for the calling module
     return logging.getLogger(name)

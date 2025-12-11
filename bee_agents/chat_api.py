@@ -34,6 +34,7 @@ from beeai_framework.memory import UnconstrainedMemory
 from beeai_framework.tools.handoff import HandoffTool
 from beeai_framework.middleware.trajectory import GlobalTrajectoryMiddleware
 
+
 # Setup Bee internal logging
 # from beeai_framework.logger import Logger
 # beeLogger = Logger('bee_chat_api', level='INFO')
@@ -51,6 +52,15 @@ from .auth import (
 from .middleware import ScholarshipAccessMiddleware, log_access_attempt
 from .logging_config import setup_logging
 
+# OpenInference BeeAI instrumentation with OpenTelemetry
+from openinference.instrumentation.beeai import BeeAIInstrumentor
+from opentelemetry import trace as trace_api
+from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
+from opentelemetry.sdk import trace as trace_sdk
+from opentelemetry.sdk.resources import Resource
+from opentelemetry.sdk.trace.export import SimpleSpanProcessor
+
+
 # Configure logging
 logger = setup_logging('chat')
 
@@ -58,7 +68,60 @@ logger = setup_logging('chat')
 orchestrator_agent: Optional[RequirementAgent] = None
 scholarship_agent: Optional[RequirementAgent] = None
 review_agent: Optional[RequirementAgent] = None  # Placeholder for future
-model_name: str = os.environ.get("CHAT_MODEL", "anthropic:claude-sonnet-4-20250514")
+
+# Model configuration - supports any provider (Anthropic, Ollama, OpenAI, etc.)
+# Format: "provider:model-name" or just "model-name" for default provider
+CHAT_MODEL = os.environ.get("CHAT_MODEL", "anthropic:claude-sonnet-4-20250514")
+ORCHESTRATOR_MODEL = os.environ.get("ORCHESTRATOR_MODEL", CHAT_MODEL)  # Can use different model for routing
+
+logger.info(f"Chat model configuration: {CHAT_MODEL}")
+logger.info(f"Orchestrator model configuration: {ORCHESTRATOR_MODEL}")
+
+def setup_observability() -> None:
+    """Setup observability using OpenInference BeeAI instrumentation with OTLP."""
+    
+    LANGFUSE_ENABLED = os.environ.get("LANGFUSE_ENABLED", "false").lower() == "true"
+    if LANGFUSE_ENABLED:
+        try:
+            # Get Langfuse configuration
+            langfuse_host = os.environ.get("LANGFUSE_HOST", "http://langfuse:3000")
+            public_key = os.environ.get("LANGFUSE_PUBLIC_KEY", "")
+            secret_key = os.environ.get("LANGFUSE_SECRET_KEY", "")
+            
+            if not public_key or not secret_key:
+                logger.warning("Langfuse keys not configured, skipping observability setup")
+                return
+            
+            # Construct OTLP endpoint - Langfuse v2 uses /api/public/otel/v1/traces
+            otlp_endpoint = f"{langfuse_host}/api/public/otel/v1/traces"
+            
+            # Create Basic auth header
+            import base64
+            auth_string = base64.b64encode(f"{public_key}:{secret_key}".encode()).decode()
+            headers = {"Authorization": f"Basic {auth_string}"}
+            
+            # Configure OpenTelemetry with OTLP exporter
+            resource = Resource(attributes={})
+            tracer_provider = trace_sdk.TracerProvider(resource=resource)
+            
+            # Create OTLP exporter with explicit endpoint and headers
+            otlp_exporter = OTLPSpanExporter(
+                endpoint=otlp_endpoint,
+                headers=headers
+            )
+            
+            tracer_provider.add_span_processor(SimpleSpanProcessor(otlp_exporter))
+            trace_api.set_tracer_provider(tracer_provider)
+
+            # Instrument BeeAI framework
+            BeeAIInstrumentor().instrument()
+            
+            logger.info(f"OpenInference BeeAI instrumentation enabled - traces will be sent to {otlp_endpoint}")
+            logger.info("OpenTelemetry OTLP integration initialized")
+            
+        except Exception as e:
+            logger.error(f"Failed to setup observability: {e}", exc_info=True)
+            logger.warning("Continuing without observability - chat functionality will work normally")
 
 
 async def initialize_scholarship_agent(llm: ChatModel) -> RequirementAgent:
@@ -172,32 +235,43 @@ async def initialize_orchestrator_agent(
 
 
 async def initialize_agents():
-    """Initialize all agents with multi-agent orchestration."""
+    """Initialize all agents with multi-agent orchestration and observability.
+    
+    Supports multiple model providers:
+    - Anthropic: anthropic:claude-sonnet-4-20250514
+    - Ollama: ollama/llama3.2:3b, ollama/qwen2.5:7b
+    - OpenAI: openai:gpt-4, openai:gpt-3.5-turbo
+    """
     global orchestrator_agent, scholarship_agent, review_agent
     
     logger.info("Initializing multi-agent system...")
+    logger.info(f"Chat model: {CHAT_MODEL}")
+    logger.info(f"Orchestrator model: {ORCHESTRATOR_MODEL}")
     
-    # Initialize shared LLM
-    llm = ChatModel.from_name(model_name)
-    logger.info(f"Using model: {model_name}")
+    # Initialize models - can use different models for different agents
+    chat_llm = ChatModel.from_name(CHAT_MODEL)
+    orchestrator_llm = ChatModel.from_name(ORCHESTRATOR_MODEL) if ORCHESTRATOR_MODEL != CHAT_MODEL else chat_llm
     
-    # Initialize specialized agents
-    scholarship_agent = await initialize_scholarship_agent(llm)
-    review_agent = await initialize_review_agent(llm)
+    # Initialize specialized agents with chat model (for quality)
+    scholarship_agent = await initialize_scholarship_agent(chat_llm)
+    review_agent = await initialize_review_agent(chat_llm)
     
     # Count active agents
     active_agents = sum([1 for agent in [scholarship_agent, review_agent] if agent is not None])
     
-    # Initialize orchestrator with specialized agents
-    orchestrator_agent = await initialize_orchestrator_agent(llm, scholarship_agent, review_agent)
+    # Initialize orchestrator with potentially faster model (for routing)
+    orchestrator_agent = await initialize_orchestrator_agent(orchestrator_llm, scholarship_agent, review_agent)
     
     logger.info(f"Multi-agent system initialized with {active_agents} specialized agent(s)")
+    logger.info("OpenInference observability is active")
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Lifespan context manager for startup and shutdown events."""
     # Startup
+    # Initialize observability BEFORE any BeeAI code runs
+    setup_observability()
     await initialize_agents()
     yield
     # Shutdown (if needed in the future)
@@ -407,6 +481,8 @@ async def authenticate_websocket(websocket: WebSocket) -> Optional[dict]:
     token_data = verify_token_with_context(auth_token)
     
     if not token_data:
+        # Must accept before closing to avoid 403
+        await websocket.accept()
         await websocket.close(code=1008, reason="Unauthorized")
         return None
     
@@ -519,18 +595,22 @@ If the user asks about other scholarships, politely inform them they don't have 
         )
 
         try:
-            response = await asyncio.wait_for( orchestrator_agent
-                .run(contextualized_message)
-                #.middleware(GlobalTrajectoryMiddleware())
-                .observe(
-                    lambda emitter: emitter.on(
-                        "update",
-                        lambda data, event: logger.info(
-                            f"Event {event.path} triggered by {type(event.creator).__name__}",
-                            extra={"username": username, "event_path": event.path}
-                        )
+            agent_run = orchestrator_agent.run(contextualized_message)
+            
+            # Add event logging
+            agent_run = agent_run.observe(
+                lambda emitter: emitter.on(
+                    "update",
+                    lambda data, event: logger.info(
+                        f"Event {event.path} triggered by {type(event.creator).__name__}",
+                        extra={"username": username, "event_path": event.path}
                     )
-                ),
+                )
+            )
+            
+            # Execute with timeout
+            response = await asyncio.wait_for(
+                agent_run,
                 timeout=300.0  # 5 minute timeout
             )
         except asyncio.TimeoutError:
@@ -621,7 +701,7 @@ async def websocket_endpoint(websocket: WebSocket):
         return
     
     await websocket.accept()
-    logger.info(f"WebSocket connection established for user: {token_data['username']}")
+    logger.debug(f"WebSocket connection established for user: {token_data['username']}")
     
     try:
         while True:
@@ -633,7 +713,7 @@ async def websocket_endpoint(websocket: WebSocket):
             await process_chat_message(websocket, message_data, token_data)
     
     except WebSocketDisconnect:
-        logger.info(f"WebSocket disconnected for user: {token_data['username']}")
+        logger.debug(f"WebSocket disconnected for user: {token_data['username']}")
     except Exception as e:
         logger.error(f"WebSocket error for {token_data['username']}: {e}")
         try:
@@ -655,11 +735,17 @@ async def get_user_profile(auth_token: Optional[str] = Cookie(None)):
     access_control = ScholarshipAccessMiddleware(token_data)
     scholarships = access_control.get_accessible_scholarships()
     
+    # Get observability dashboard URL for admin users
+    observability_dashboard = None
+    if token_data["role"] == "admin":
+        observability_dashboard = os.environ.get("OBSERVABILITY_DASHBOARD", "")
+    
     return {
         "username": token_data["username"],
         "role": token_data["role"],
         "scholarships": scholarships,
-        "permissions": token_data["permissions"]
+        "permissions": token_data["permissions"],
+        "observability_dashboard": observability_dashboard
     }
 
 
@@ -685,13 +771,43 @@ async def health_check():
             "scholarship": scholarship_agent is not None,
             "review": review_agent is not None
         },
-        "model": model_name
+        "chat_model": CHAT_MODEL,
+        "orchestrator_model": ORCHESTRATOR_MODEL
     }
 
 
 def main():
-    """Main entry point for running the chat server."""
-    parser = argparse.ArgumentParser(description="Scholarship Agent Chat Server")
+    """Main entry point for running the chat server.
+    
+    Supports multiple model providers via environment variables:
+    - CHAT_MODEL: Main model for agent responses
+    - ORCHESTRATOR_MODEL: Model for routing (optional, defaults to CHAT_MODEL)
+    
+    Examples:
+        # Anthropic Claude
+        CHAT_MODEL="anthropic:claude-sonnet-4-20250514" python -m bee_agents.chat_api
+        
+        # Ollama (fast, local)
+        CHAT_MODEL="ollama/llama3.2:3b" python -m bee_agents.chat_api
+        
+        # Mixed: Fast orchestrator, quality responses
+        ORCHESTRATOR_MODEL="ollama/llama3.2:1b" CHAT_MODEL="anthropic:claude-sonnet-4-20250514" python -m bee_agents.chat_api
+    """
+    parser = argparse.ArgumentParser(
+        description="Scholarship Agent Chat Server - Multi-Model Support",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""
+Model Configuration:
+  Set via environment variables:
+    CHAT_MODEL           Main model for responses (default: anthropic:claude-sonnet-4-20250514)
+    ORCHESTRATOR_MODEL   Model for routing (default: same as CHAT_MODEL)
+  
+  Supported providers:
+    - Anthropic: anthropic:claude-sonnet-4-20250514
+    - Ollama:    ollama/llama3.2:3b, ollama/llama3:8b, ollama/qwen2.5:7b
+    - OpenAI:    openai:gpt-4, openai:gpt-3.5-turbo
+        """
+    )
     parser.add_argument(
         "--host",
         type=str,
@@ -703,12 +819,6 @@ def main():
         type=int,
         default=8100,
         help="Port to bind to (default: 8100)"
-    )
-    parser.add_argument(
-        "--model",
-        type=str,
-        default="anthropic:claude-sonnet-4-20250514",
-        help="Model to use (default: anthropic:claude-sonnet-4-20250514)"
     )
     parser.add_argument(
         "--ssl-keyfile",
@@ -725,9 +835,6 @@ def main():
     
     args = parser.parse_args()
     
-    global model_name
-    model_name = args.model
-    
     # Run the server
     import uvicorn
     from uvicorn.config import LOGGING_CONFIG
@@ -742,7 +849,8 @@ def main():
     
     protocol = "https" if ssl_keyfile and ssl_certfile else "http"
     logger.info(f"Starting chat server on {protocol}://{args.host}:{args.port}")
-    logger.info(f"Using model: {model_name}")
+    logger.info(f"Chat model: {CHAT_MODEL}")
+    logger.info(f"Orchestrator model: {ORCHESTRATOR_MODEL}")
     logger.info(f"Open {protocol}://localhost:{args.port} in your browser")
     
     if ssl_keyfile and ssl_certfile:
@@ -751,10 +859,14 @@ def main():
     else:
         logger.info("SSL disabled (no certificates found)")
     
-    # Configure uvicorn logging to match our format
+    # Configure uvicorn logging to match our format and suppress WebSocket noise
     log_config = LOGGING_CONFIG.copy()
     log_config["formatters"]["default"]["fmt"] = "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
     log_config["formatters"]["access"]["fmt"] = "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+    
+    # Suppress noisy WebSocket connection logs
+    log_config["loggers"]["uvicorn.error"]["level"] = "WARNING"
+    log_config["loggers"]["uvicorn.access"]["level"] = "WARNING"
     
     uvicorn.run(
         app,

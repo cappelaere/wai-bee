@@ -1,6 +1,33 @@
 services:
+  # Ollama - Local LLM Server
+  ollama:
+    image: ollama/ollama:latest
+    container_name: wai-ollama
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama-data:/root/.ollama
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:11434/api/tags"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    networks:
+      - wai-network
+    # Uncomment if you have NVIDIA GPU
+    # deploy:
+    #   resources:
+    #     reservations:
+    #       devices:
+    #         - driver: nvidia
+    #           count: 1
+    #           capabilities: [gpu]
+
   # Scholarship API Server (handles all scholarships)
   api:
+    image: wai-api:latest
     build:
       context: .
       dockerfile: Dockerfile-api
@@ -36,6 +63,7 @@ services:
 
   # Chat Frontend
   chat:
+    image: wai-chat:latest
     build:
       context: .
       dockerfile: Dockerfile-chat
@@ -74,5 +102,6 @@ networks:
 volumes:
   outputs:
   logs:
+  ollama-data:
 
 # Made with Bob
