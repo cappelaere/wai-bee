@@ -50,7 +50,7 @@ body {
     position: relative;
 }
 
-.about-button, .help-button {
+.about-button, .help-button, .observability-button {
     position: absolute;
     top: 50%;
     transform: translateY(-50%);
@@ -76,12 +76,16 @@ body {
     left: 120px;
 }
 
-.about-button:hover, .help-button:hover {
+.observability-button {
+    left: 245px;
+}
+
+.about-button:hover, .help-button:hover, .observability-button:hover {
     background: rgba(255, 255, 255, 0.3);
     transform: translateY(-50%) scale(1.05);
 }
 
-.about-button:active, .help-button:active {
+.about-button:active, .help-button:active, .observability-button:active {
     transform: translateY(-50%) scale(0.95);
 }
 
@@ -184,6 +188,29 @@ body {
     border-radius: 12px;
     font-size: 12px;
     font-weight: 600;
+}
+
+.profile-langfuse-btn {
+    background: #d1ecf1;
+    color: #0c5460;
+    border: 1px solid #bee5eb;
+    padding: 8px 16px;
+    border-radius: 20px;
+    cursor: pointer;
+    font-size: 14px;
+    font-weight: 600;
+    transition: all 0.3s;
+    flex-shrink: 0;
+    margin-right: 8px;
+}
+
+.profile-langfuse-btn:hover {
+    background: #bee5eb;
+    transform: scale(1.05);
+}
+
+.profile-langfuse-btn:active {
+    transform: scale(0.95);
 }
 
 .profile-logout-btn {
