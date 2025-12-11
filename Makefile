@@ -20,11 +20,8 @@ help:
 	@echo "  logs           - View logs from all services"
 	@echo "  logs-api       - View API logs"
 	@echo "  logs-chat      - View Chat logs"
-	@echo "  logs-ollama    - View Ollama logs"
 	@echo "  shell          - Open shell in API container"
 	@echo "  health         - Check health of all services"
-	@echo "  ollama-pull    - Pull recommended Ollama models"
-	@echo "  ollama-list    - List downloaded Ollama models"
 	@echo "  clean          - Remove containers and images"
 	@echo "  clean-all      - Remove containers, images, and volumes"
 	@echo "  test           - Run API tests"
@@ -95,15 +92,12 @@ deploy:
 	@echo "Services deployed:"
 	@echo "  API Server:        http://$(HOST):8200/docs"
 	@echo "  Chat Frontend:     http://$(HOST):8100/login"
-	@echo "  Ollama:            http://$(HOST):11434"
 	@echo ""
 	@echo "View logs with: make logs"
-	@echo "Pull Ollama models: make ollama-pull"
 
 # Stop all containers
 stop:
 	@echo "Stopping all containers..."
-	-docker stop wai-api wai-chat wai-ollama 2>/dev/null || true
 	-docker compose down 2>/dev/null || true
 	@echo "All containers stopped"
 
@@ -123,9 +117,6 @@ logs-api:
 logs-chat:
 	docker logs -f wai-chat
 
-logs-ollama:
-	docker logs -f wai-ollama
-
 # Open shell in container
 shell:
 	docker exec -it wai-api bash
@@ -140,34 +131,6 @@ health:
 	@echo "Chat Frontend:"
 	@curl -s http://$(HOST):8100/health | python -m json.tool || echo "  Service not responding"
 	@echo ""
-	@echo "Ollama:"
-	@curl -s http://$(HOST):11434/api/tags | python -m json.tool || echo "  Service not responding"
-
-# Ollama model management
-ollama-pull:
-	@echo "Pulling recommended Ollama models..."
-	@echo "This may take several minutes depending on your connection..."
-	@echo ""
-	@echo "Pulling llama3.2:1b (fast orchestrator)..."
-	docker-compose exec ollama ollama pull llama3.2:1b
-	@echo ""
-	@echo "Pulling llama3.2:3b (balanced chat)..."
-	docker-compose exec ollama ollama pull llama3.2:3b
-	@echo ""
-	@echo "Models downloaded successfully!"
-	@echo "Update .env to use: CHAT_MODEL=\"ollama/llama3.2:3b\""
-
-ollama-list:
-	@echo "Downloaded Ollama models:"
-	@docker-compose exec ollama ollama list
-
-ollama-pull-all:
-	@echo "Pulling all recommended models (this will take a while)..."
-	docker-compose exec ollama ollama pull llama3.2:1b
-	docker-compose exec ollama ollama pull llama3.2:3b
-	docker-compose exec ollama ollama pull llama3:8b
-	docker-compose exec ollama ollama pull qwen2.5:7b
-	@echo "All models downloaded!"
 
 # Run tests
 test:
@@ -177,11 +140,10 @@ test:
 # Clean up containers and images
 clean:
 	@echo "Removing containers and images..."
-	-docker stop wai-api wai-chat wai-ollama 2>/dev/null || true
-	-docker rm wai-api wai-chat wai-ollama 2>/dev/null || true
+	-docker rm wai-api wai-chat 2>/dev/null || true
 	-docker compose down 2>/dev/null || true
 	-docker rmi wai-api:latest wai-chat:latest 2>/dev/null || true
-	@echo "Cleanup complete (Ollama data preserved in volume)"
+	@echo "Cleanup complete"
 
 # Clean everything including volumes
 clean-all: clean
