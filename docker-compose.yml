@@ -73,7 +73,9 @@ services:
     environment:
       - HOST=0.0.0.0
       - PORT=8100
+      - AGENT_MODE=single
       - CHAT_MODEL=anthropic:claude-sonnet-4-20250514
+      - ORCHESTRATOR_MODEL=ollama/llama3:latest
       - API_SERVER_URL=http://api:8200
     env_file:
       - .env

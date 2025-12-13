@@ -56,6 +56,8 @@ RUN useradd -m -u 1000 chatuser && \
 COPY --chown=chatuser:chatuser .env .env
 COPY --chown=chatuser:chatuser bee_agents/__init__.py bee_agents/
 COPY --chown=chatuser:chatuser bee_agents/chat_api.py bee_agents/
+COPY --chown=chatuser:chatuser bee_agents/chat_agents.py bee_agents/
+COPY --chown=chatuser:chatuser bee_agents/chat_agents_single.py bee_agents/
 COPY --chown=chatuser:chatuser bee_agents/auth.py bee_agents/
 COPY --chown=chatuser:chatuser bee_agents/middleware.py bee_agents/
 COPY --chown=chatuser:chatuser bee_agents/logging_config.py bee_agents/
@@ -82,5 +84,5 @@ ENV HOST=0.0.0.0 \
     PORT=8100 \
     CHAT_MODEL=anthropic:claude-sonnet-4-20250514
 
-# Run the chat server
-CMD ["python", "-m", "bee_agents.chat_api", "--host", "0.0.0.0", "--port", "8100"]
+# Run the chat server with uvicorn and auto-reload for development
+CMD ["uvicorn", "bee_agents.chat_api:app", "--host", "0.0.0.0", "--port", "8100", "--reload"]

@@ -3,15 +3,21 @@
 This module provides a web-based chat interface for interacting with
 the scholarship agent using WebSockets for real-time communication.
 
+Supports both multi-agent orchestration and single-agent modes.
+
 Author: Pat G Cappelaere, IBM Federal Consulting
 Created: 2025-12-08
-Version: 1.0.0
+Version: 2.0.0
 License: MIT
 
 Example:
-    Run the chat server::
+    Run the chat server with multi-agent mode (default)::
     
         python bee_agents/chat_api.py --port 8100
+    
+    Run with single-agent mode::
+    
+        AGENT_MODE=single python bee_agents/chat_api.py --port 8100
 """
 
 import asyncio
@@ -19,20 +25,13 @@ import os, json
 import logging
 import time
 from pathlib import Path
-from typing import Optional
+from typing import Optional, Union
 from contextlib import asynccontextmanager
 import argparse
 
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException, Cookie
 from fastapi.responses import HTMLResponse, FileResponse, Response, JSONResponse
 from fastapi.staticfiles import StaticFiles
-
-from beeai_framework.backend import ChatModel  # type: ignore
-from beeai_framework.agents.requirement import RequirementAgent  # type: ignore
-from beeai_framework.tools.openapi import OpenAPITool  # type: ignore
-from beeai_framework.memory import UnconstrainedMemory
-from beeai_framework.tools.handoff import HandoffTool
-from beeai_framework.middleware.trajectory import GlobalTrajectoryMiddleware
 
 
 # Setup Bee internal logging
@@ -51,6 +50,8 @@ from .auth import (
 )
 from .middleware import ScholarshipAccessMiddleware, log_access_attempt
 from .logging_config import setup_logging
+from .chat_agents import MultiAgentOrchestrator
+from .chat_agents_single import SingleAgentHandler
 
 # OpenInference BeeAI instrumentation with OpenTelemetry
 from openinference.instrumentation.beeai import BeeAIInstrumentor
@@ -64,18 +65,21 @@ from opentelemetry.sdk.trace.export import SimpleSpanProcessor
 # Configure logging
 logger = setup_logging('chat')
 
-# Global agent instances
-orchestrator_agent: Optional[RequirementAgent] = None
-scholarship_agent: Optional[RequirementAgent] = None
-review_agent: Optional[RequirementAgent] = None  # Placeholder for future
+# Global agent handler (either multi-agent or single-agent)
+agent_handler: Optional[Union[MultiAgentOrchestrator, SingleAgentHandler]] = None
+
+# Agent mode configuration
+AGENT_MODE = os.environ.get("AGENT_MODE", "single").lower()  # "multi" or "single"
 
 # Model configuration - supports any provider (Anthropic, Ollama, OpenAI, etc.)
 # Format: "provider:model-name" or just "model-name" for default provider
 CHAT_MODEL = os.environ.get("CHAT_MODEL", "anthropic:claude-sonnet-4-20250514")
-ORCHESTRATOR_MODEL = os.environ.get("ORCHESTRATOR_MODEL", CHAT_MODEL)  # Can use different model for routing
+ORCHESTRATOR_MODEL = os.environ.get("ORCHESTRATOR_MODEL", CHAT_MODEL)  # Can use different model for routing (multi-agent only)
 
+logger.info(f"Agent mode: {AGENT_MODE}")
 logger.info(f"Chat model configuration: {CHAT_MODEL}")
-logger.info(f"Orchestrator model configuration: {ORCHESTRATOR_MODEL}")
+if AGENT_MODE == "multi":
+    logger.info(f"Orchestrator model configuration: {ORCHESTRATOR_MODEL}")
 
 def setup_observability() -> None:
     """Setup observability using OpenInference BeeAI instrumentation with OTLP."""
@@ -124,145 +128,33 @@ def setup_observability() -> None:
             logger.warning("Continuing without observability - chat functionality will work normally")
 
 
-async def initialize_scholarship_agent(llm: ChatModel) -> RequirementAgent:
-    """Initialize the scholarship agent with OpenAPI tools.
-    
-    Args:
-        llm: The language model to use
-        
-    Returns:
-        Initialized scholarship agent with OpenAPI tools
-    """
-    logger.info("Initializing scholarship agent...")
-    
-    # Load OpenAPI schema
-    schema_path = Path(__file__).parent / "openapi.json"
-    try:
-        with open(schema_path) as f:
-            open_api_schema = json.load(f)
-    except FileNotFoundError:
-        logger.error(f"OpenAPI schema not found at {schema_path}")
-        raise
-    
-    # Create tools from OpenAPI schema
-    tools = OpenAPITool.from_schema(open_api_schema)
-    logger.info(f"Scholarship agent: Loaded {len(tools)} OpenAPI tools")
-    
-    # Create specialized agent
-    return RequirementAgent(
-        llm=llm,
-        tools=tools,
-        name="ScholarshipAgent",
-        description="Specialized agent for scholarship requirement analysis and queries"
-    )
-
-
-async def initialize_review_agent(llm: ChatModel) -> Optional[RequirementAgent]:
-    """Initialize the application review agent.
-    
-    Args:
-        llm: The language model to use
-        
-    Returns:
-        Initialized review agent, or None if not yet implemented
-    """
-    # TODO: Implement when review agent is ready
-    logger.info("Review agent: Not yet implemented")
-    return None
-
-
-async def initialize_orchestrator_agent(
-    llm: ChatModel,
-    scholarship_agent: Optional[RequirementAgent],
-    review_agent: Optional[RequirementAgent]
-) -> RequirementAgent:
-    """Initialize the main orchestrator agent with hand-off capabilities.
-    
-    Args:
-        llm: The language model to use
-        scholarship_agent: The scholarship specialist agent (if available)
-        review_agent: The review specialist agent (if available)
-        
-    Returns:
-        Initialized orchestrator agent
-    """
-    logger.info("Initializing orchestrator agent...")
-    
-    # Build handoff tools dynamically based on available agents
-    handoff_tools = []
-    
-    if scholarship_agent:
-        handoff_tools.append(
-            HandoffTool(
-                target=scholarship_agent,
-                name="scholarship_specialist",
-                description="Answers questions about current scores and scholarship applications"
-            )
-        )
-    
-    if review_agent:
-        handoff_tools.append(
-            HandoffTool(
-                target=review_agent,
-                name="review_expert",
-                description="Review a specific application to provide a second opinion and provide feedback"
-            )
-        )
-    
-    # Build instructions based on available agents
-    instructions_parts = ["You are the main coordinator agent."]
-    
-    if scholarship_agent:
-        instructions_parts.append("- For scholarship related questions or queries: use the scholarship_specialist")
-    
-    if review_agent:
-        instructions_parts.append("- For review related questions or queries: use the review_expert")
-    
-    instructions_parts.append("- For general questions: answer directly")
-    instructions_parts.append("\nAlways be helpful and explain which specialist will help if delegating.")
-    
-    instructions = "\n".join(instructions_parts)
-    
-    # The orchestrator can delegate to specialized agents using BeeAI's hand-off pattern
-    return RequirementAgent(
-        llm=llm,
-        memory=UnconstrainedMemory(),
-        tools=handoff_tools,
-        instructions=instructions,
-        name="OrchestratorAgent",
-        description="Main coordinator agent that routes requests to specialized agents"
-    )
-
-
 async def initialize_agents():
-    """Initialize all agents with multi-agent orchestration and observability.
+    """Initialize agents based on configured mode (multi-agent or single-agent).
     
     Supports multiple model providers:
     - Anthropic: anthropic:claude-sonnet-4-20250514
     - Ollama: ollama/llama3.2:3b, ollama/qwen2.5:7b
     - OpenAI: openai:gpt-4, openai:gpt-3.5-turbo
+    
+    Agent modes:
+    - multi: Multi-agent orchestration with specialized agents (default)
+    - single: Single unified agent handling all tasks
     """
-    global orchestrator_agent, scholarship_agent, review_agent
+    global agent_handler
     
-    logger.info("Initializing multi-agent system...")
-    logger.info(f"Chat model: {CHAT_MODEL}")
-    logger.info(f"Orchestrator model: {ORCHESTRATOR_MODEL}")
+    logger.info(f"Initializing agent system in {AGENT_MODE} mode...")
     
-    # Initialize models - can use different models for different agents
-    chat_llm = ChatModel.from_name(CHAT_MODEL)
-    orchestrator_llm = ChatModel.from_name(ORCHESTRATOR_MODEL) if ORCHESTRATOR_MODEL != CHAT_MODEL else chat_llm
+    if AGENT_MODE == "single":
+        # Single-agent mode
+        agent_handler = SingleAgentHandler(CHAT_MODEL)
+        await agent_handler.initialize()
+        logger.info("Single-agent system initialized")
+    else:
+        # Multi-agent mode (default)
+        agent_handler = MultiAgentOrchestrator(CHAT_MODEL, ORCHESTRATOR_MODEL)
+        await agent_handler.initialize()
+        logger.info("Multi-agent system initialized")
     
-    # Initialize specialized agents with chat model (for quality)
-    scholarship_agent = await initialize_scholarship_agent(chat_llm)
-    review_agent = await initialize_review_agent(chat_llm)
-    
-    # Count active agents
-    active_agents = sum([1 for agent in [scholarship_agent, review_agent] if agent is not None])
-    
-    # Initialize orchestrator with potentially faster model (for routing)
-    orchestrator_agent = await initialize_orchestrator_agent(orchestrator_llm, scholarship_agent, review_agent)
-    
-    logger.info(f"Multi-agent system initialized with {active_agents} specialized agent(s)")
     logger.info("OpenInference observability is active")
 
 
@@ -570,11 +462,12 @@ If the user asks about other scholarships, politely inform them they don't have 
     start_time = time.time()
     
     try:
-        if orchestrator_agent is None:
-            raise RuntimeError("Orchestrator agent not initialized")
+        if agent_handler is None:
+            raise RuntimeError("Agent handler not initialized")
         
-        # Use orchestrator with timeout protection - it will handle delegation to specialized agents
-        # Prepend scholarship context to the message
+        # Get the agent from the handler (works for both multi-agent and single-agent modes)
+        agent = agent_handler.get_agent()
+        
         # Validate inputs before processing
         if not user_message or not user_message.strip():
             raise ValueError("User message cannot be empty")
@@ -595,7 +488,7 @@ If the user asks about other scholarships, politely inform them they don't have 
         )
 
         try:
-            agent_run = orchestrator_agent.run(contextualized_message)
+            agent_run = agent.run(contextualized_message)
             
             # Add event logging
             agent_run = agent_run.observe(
@@ -763,44 +656,56 @@ async def get_user_scholarships_endpoint(auth_token: Optional[str] = Cookie(None
 
 @app.get("/health")
 async def health_check():
-    """Health check endpoint with multi-agent status."""
+    """Health check endpoint with agent status."""
+    if agent_handler is None:
+        return {
+            "status": "initializing",
+            "agent_mode": AGENT_MODE,
+            "chat_model": CHAT_MODEL
+        }
+    
+    # Get status from the agent handler
+    status_info = agent_handler.get_status()
+    
     return {
         "status": "healthy",
-        "orchestrator_initialized": orchestrator_agent is not None,
-        "agents": {
-            "scholarship": scholarship_agent is not None,
-            "review": review_agent is not None
-        },
-        "chat_model": CHAT_MODEL,
-        "orchestrator_model": ORCHESTRATOR_MODEL
+        "agent_mode": AGENT_MODE,
+        **status_info
     }
 
 
 def main():
     """Main entry point for running the chat server.
     
-    Supports multiple model providers via environment variables:
+    Supports multiple agent modes and model providers via environment variables:
+    - AGENT_MODE: Agent architecture mode (multi or single, default: multi)
     - CHAT_MODEL: Main model for agent responses
-    - ORCHESTRATOR_MODEL: Model for routing (optional, defaults to CHAT_MODEL)
+    - ORCHESTRATOR_MODEL: Model for routing in multi-agent mode (optional, defaults to CHAT_MODEL)
     
     Examples:
-        # Anthropic Claude
+        # Multi-agent mode with Anthropic Claude (default)
         CHAT_MODEL="anthropic:claude-sonnet-4-20250514" python -m bee_agents.chat_api
         
-        # Ollama (fast, local)
-        CHAT_MODEL="ollama/llama3.2:3b" python -m bee_agents.chat_api
+        # Single-agent mode with Ollama
+        AGENT_MODE=single CHAT_MODEL="ollama/llama3.2:3b" python -m bee_agents.chat_api
         
-        # Mixed: Fast orchestrator, quality responses
+        # Multi-agent with fast orchestrator, quality responses
         ORCHESTRATOR_MODEL="ollama/llama3.2:1b" CHAT_MODEL="anthropic:claude-sonnet-4-20250514" python -m bee_agents.chat_api
     """
     parser = argparse.ArgumentParser(
-        description="Scholarship Agent Chat Server - Multi-Model Support",
+        description="Scholarship Agent Chat Server - Multi-Mode & Multi-Model Support",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
+Agent Mode Configuration:
+  Set via environment variables:
+    AGENT_MODE           Agent architecture (multi or single, default: multi)
+                         - multi: Multi-agent orchestration with specialized agents
+                         - single: Single unified agent handling all tasks
+    
 Model Configuration:
   Set via environment variables:
     CHAT_MODEL           Main model for responses (default: anthropic:claude-sonnet-4-20250514)
-    ORCHESTRATOR_MODEL   Model for routing (default: same as CHAT_MODEL)
+    ORCHESTRATOR_MODEL   Model for routing in multi-agent mode (default: same as CHAT_MODEL)
   
   Supported providers:
     - Anthropic: anthropic:claude-sonnet-4-20250514
@@ -849,8 +754,10 @@ Model Configuration:
     
     protocol = "https" if ssl_keyfile and ssl_certfile else "http"
     logger.info(f"Starting chat server on {protocol}://{args.host}:{args.port}")
+    logger.info(f"Agent mode: {AGENT_MODE}")
     logger.info(f"Chat model: {CHAT_MODEL}")
-    logger.info(f"Orchestrator model: {ORCHESTRATOR_MODEL}")
+    if AGENT_MODE == "multi":
+        logger.info(f"Orchestrator model: {ORCHESTRATOR_MODEL}")
     logger.info(f"Open {protocol}://localhost:{args.port} in your browser")
     
     if ssl_keyfile and ssl_certfile:

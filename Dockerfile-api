@@ -79,5 +79,5 @@ ENV SCHOLARSHIP=Delaney_Wings \
     HOST=0.0.0.0 \
     PORT=8200
 
-# Run the API server
-CMD ["python", "-m", "bee_agents.run_api", "--host", "0.0.0.0", "--port", "8200"]
+# Run the API server with uvicorn and auto-reload for development
+CMD ["uvicorn", "bee_agents.api:app", "--host", "0.0.0.0", "--port", "8200", "--reload"]
