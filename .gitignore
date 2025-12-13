@@ -56,4 +56,4 @@ logs/
 # pytest
 .pytest_cache/
 .coverage
-htmlcov/
+htmlcov/wai-bee-env
