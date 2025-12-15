@@ -2,12 +2,12 @@
   "version": "1.0",
   "description": "User and scholarship configuration for multi-tenancy",
   "users": {
-    "admin": {
+    "pat": {
       "password_env": "ADMIN_PASSWORD",
       "role": "admin",
       "scholarships": ["*"],
       "permissions": ["read", "write", "admin"],
-      "email": "admin@example.com",
+      "email": "pat@cappelaere.com",
       "full_name": "System Administrator",
       "enabled": true
     },

@@ -21,11 +21,12 @@ Example:
 import logging
 import os
 import json
-from typing import Optional, List, Dict
+from typing import Optional, List, Dict, Any
 from pathlib import Path
 from contextlib import asynccontextmanager
-from fastapi import FastAPI, HTTPException, Query, Request
+from fastapi import FastAPI, HTTPException, Query, Request, Depends
 from fastapi.responses import JSONResponse, FileResponse, HTMLResponse
+from fastapi.middleware.cors import CORSMiddleware
 import argparse
 import time
 
@@ -48,6 +49,30 @@ logger = setup_logging('api')
 # Global data services dictionary (one per scholarship)
 data_services: Dict[str, DataService] = {}
 AVAILABLE_SCHOLARSHIPS = ["Delaney_Wings", "Evans_Wings"]
+
+
+def get_scholarship_config_path(scholarship_name: str) -> Path:
+    """Get path to canonical config.yml for a scholarship."""
+    return Path("data") / scholarship_name / "config.yml"
+
+
+def load_scholarship_config(scholarship_name: str) -> Dict[str, Any]:
+    """Load canonical scholarship config."""
+    import yaml  # Local import to avoid global dependency at import time
+
+    config_path = get_scholarship_config_path(scholarship_name)
+    if not config_path.exists():
+        raise HTTPException(
+            status_code=404,
+            detail=f"Config file not found for scholarship {scholarship_name}: {config_path}",
+        )
+    try:
+        with open(config_path, "r", encoding="utf-8") as f:
+            config = yaml.safe_load(f) or {}
+        return config
+    except Exception as e:
+        logger.error(f"Error loading scholarship config {config_path}: {e}")
+        raise HTTPException(status_code=500, detail="Failed to load scholarship config")
 
 
 @asynccontextmanager
@@ -73,6 +98,18 @@ app = FastAPI(
             "description": "Development server (default port)"
         }
     ]
+)
+
+# Allow chat frontend (port 8100) to call admin APIs on this server
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[
+        "http://localhost:8100",
+        "http://127.0.0.1:8100",
+    ],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
 
@@ -205,6 +242,277 @@ async def get_scholarship_info(
     except Exception as e:
         logger.error(f"Error getting scholarship info: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+
+
+def require_admin(request: Request) -> None:
+    """Placeholder admin guard for future integration.
+
+    Currently assumes that access to /admin endpoints is restricted by
+    deployment (e.g., API gateway, auth middleware).
+    """
+    return
+
+
+@app.get("/admin/{scholarship}/weights", tags=["Admin"])
+async def get_scholarship_weights(
+    scholarship: str,
+    _: None = Depends(require_admin),
+):
+    """Get current scoring weights for a scholarship from canonical config."""
+    config = load_scholarship_config(scholarship)
+    agents_cfg = config.get("agents", {})
+    scoring_cfg = config.get("scoring", {})
+    scoring_agents = scoring_cfg.get("scoring_agents", [])
+
+    weights = {}
+    total = 0.0
+    for name, agent in agents_cfg.items():
+        weight = agent.get("weight")
+        if weight is not None:
+            weights[name] = {
+                "weight": weight,
+                "description": agent.get("description", ""),
+                "enabled": agent.get("enabled", True),
+                "required": agent.get("required", False),
+            }
+            total += weight
+
+    return {
+        "scholarship": scholarship,
+        "weights": weights,
+        "total_weight": round(total, 4),
+        "scoring_agents": scoring_agents,
+    }
+
+
+@app.put("/admin/{scholarship}/weights", tags=["Admin"])
+async def update_scholarship_weights(
+    scholarship: str,
+    payload: Dict[str, Any],
+    _: None = Depends(require_admin),
+):
+    """Update scoring weights in canonical config and regenerate artifacts."""
+    config = load_scholarship_config(scholarship)
+    agents_cfg = config.get("agents", {})
+
+    new_weights = payload.get("weights", {})
+    if not isinstance(new_weights, dict):
+        raise HTTPException(status_code=400, detail="weights must be an object")
+
+    total = 0.0
+    for name, w in new_weights.items():
+        if name not in agents_cfg:
+            raise HTTPException(status_code=400, detail=f"Unknown agent: {name}")
+        try:
+            weight_val = float(w.get("weight"))
+        except Exception:
+            raise HTTPException(status_code=400, detail=f"Invalid weight for agent {name}")
+        agents_cfg[name]["weight"] = weight_val
+        total += weight_val
+
+    if abs(total - 1.0) > 0.001:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Weights must sum to 1.0, got {total}",
+        )
+
+    config["agents"] = agents_cfg
+
+    # Persist back to config.yml with simple backup
+    config_path = get_scholarship_config_path(scholarship)
+    backup_path = config_path.with_suffix(".backup")
+    try:
+        import shutil
+        import yaml
+
+        if config_path.exists():
+            shutil.copy2(config_path, backup_path)
+        with open(config_path, "w", encoding="utf-8") as f:
+            yaml.safe_dump(config, f, sort_keys=False, allow_unicode=True)
+    except Exception as e:
+        logger.error(f"Failed to write updated config for {scholarship}: {e}")
+        raise HTTPException(status_code=500, detail="Failed to save updated weights")
+
+    # Regenerate artifacts on disk
+    try:
+        from scripts.generate_scholarship_artifacts import main as generate_main
+
+        root = Path(__file__).resolve().parents[1]
+        generate_main([str(root / "scripts/generate_scholarship_artifacts.py"), scholarship])
+    except Exception as e:
+        logger.error(f"Failed to regenerate artifacts for {scholarship}: {e}")
+        raise HTTPException(status_code=500, detail="Weights saved but artifact regeneration failed")
+
+    return {"status": "ok", "total_weight": round(total, 4)}
+
+
+@app.get("/admin/{scholarship}/criteria/{agent_name}", tags=["Admin"])
+async def get_agent_criteria(
+    scholarship: str,
+    agent_name: str,
+    _: None = Depends(require_admin),
+):
+    """Get current criteria text for a specific agent from canonical config."""
+    config = load_scholarship_config(scholarship)
+    agents_cfg = config.get("agents", {})
+    criteria_text = config.get("criteria_text", {})
+
+    if agent_name not in agents_cfg:
+        raise HTTPException(status_code=404, detail=f"Unknown agent: {agent_name}")
+
+    crit_ref = agents_cfg[agent_name].get("criteria_ref")
+    crit_value = criteria_text.get(crit_ref) if crit_ref else None
+
+    return {
+        "scholarship": scholarship,
+        "agent": agent_name,
+        "criteria_ref": crit_ref,
+        "criteria_text": crit_value,
+    }
+
+
+@app.put("/admin/{scholarship}/criteria/{agent_name}", tags=["Admin"])
+async def update_agent_criteria(
+    scholarship: str,
+    agent_name: str,
+    payload: Dict[str, Any],
+    _: None = Depends(require_admin),
+):
+    """Update criteria text for a specific agent and regenerate artifacts."""
+    config = load_scholarship_config(scholarship)
+    agents_cfg = config.get("agents", {})
+    criteria_text = config.get("criteria_text", {})
+
+    if agent_name not in agents_cfg:
+        raise HTTPException(status_code=404, detail=f"Unknown agent: {agent_name}")
+
+    crit_ref = agents_cfg[agent_name].get("criteria_ref")
+    if not crit_ref:
+        raise HTTPException(status_code=400, detail=f"Agent {agent_name} does not use criteria_ref")
+
+    new_text = payload.get("criteria_text")
+    if not isinstance(new_text, str) or not new_text.strip():
+        raise HTTPException(status_code=400, detail="criteria_text must be a non-empty string")
+
+    # Simple validation: ensure length is reasonable
+    if len(new_text) < 100:
+        raise HTTPException(status_code=400, detail="criteria_text is too short (< 100 characters)")
+
+    criteria_text[crit_ref] = new_text
+    config["criteria_text"] = criteria_text
+
+    # Persist back to config.yml with simple backup
+    config_path = get_scholarship_config_path(scholarship)
+    backup_path = config_path.with_suffix(".backup")
+    try:
+        import shutil
+        import yaml
+
+        if config_path.exists():
+            shutil.copy2(config_path, backup_path)
+        with open(config_path, "w", encoding="utf-8") as f:
+            yaml.safe_dump(config, f, sort_keys=False, allow_unicode=True)
+    except Exception as e:
+        logger.error(f"Failed to write updated criteria for {scholarship}: {e}")
+        raise HTTPException(status_code=500, detail="Failed to save updated criteria")
+
+    # Regenerate artifacts (criteria/*.txt, etc.)
+    try:
+        from scripts.generate_scholarship_artifacts import main as generate_main
+
+        root = Path(__file__).resolve().parents[1]
+        generate_main([str(root / "scripts/generate_scholarship_artifacts.py"), scholarship])
+    except Exception as e:
+        logger.error(f"Failed to regenerate artifacts for {scholarship}: {e}")
+        raise HTTPException(status_code=500, detail="Criteria saved but artifact regeneration failed")
+
+    return {"status": "ok", "agent": agent_name}
+
+
+@app.post("/admin/{scholarship}/criteria/{agent_name}/regenerate", tags=["Admin"])
+async def regenerate_agent_criteria_with_llm(
+    scholarship: str,
+    agent_name: str,
+    payload: Dict[str, Any],
+    _: None = Depends(require_admin),
+):
+    """Generate a new criteria draft for an agent using an LLM.
+
+    This endpoint does NOT persist changes automatically. It returns a
+    proposed `criteria_text` that an admin can review and then apply via
+    the standard PUT /admin/{scholarship}/criteria/{agent_name} endpoint.
+    """
+    from beeai_framework.backend.chat import ChatModel  # type: ignore
+
+    config = load_scholarship_config(scholarship)
+    agents_cfg = config.get("agents", {})
+    criteria_text = config.get("criteria_text", {})
+
+    if agent_name not in agents_cfg:
+        raise HTTPException(status_code=404, detail=f"Unknown agent: {agent_name}")
+
+    agent_cfg = agents_cfg[agent_name]
+    crit_ref = agent_cfg.get("criteria_ref")
+    if not crit_ref:
+        raise HTTPException(status_code=400, detail=f"Agent {agent_name} does not use criteria_ref")
+
+    current_text = criteria_text.get(crit_ref, "")
+    base_description = payload.get("base_description") or agent_cfg.get("description", "")
+    target_model = payload.get("target_model") or os.getenv("PRIMARY_MODEL", "ollama:llama3.2:1b")
+
+    system_prompt = (
+        "You are an expert in designing scoring rubrics for scholarship application agents.\n"
+        "Generate clear, structured evaluation criteria text suitable to be used as a prompt\n"
+        "for an LLM that will score this agent. The output should be plain text with headings\n"
+        "and bullet points, not JSON. Do not include instructions about JSON schemas.\n"
+    )
+
+    user_prompt_parts = [
+        f"Scholarship ID: {scholarship}",
+        f"Agent name: {agent_name}",
+        f"Agent description: {base_description}",
+        f"Target model identifier: {target_model}",
+    ]
+    if current_text:
+        user_prompt_parts.append(
+            "Current criteria text (improve and refine, but keep intent compatible):\n"
+            f"{current_text}"
+        )
+    else:
+        user_prompt_parts.append("No existing criteria text; create a new rubric from scratch.")
+
+    user_prompt = "\n\n".join(user_prompt_parts)
+
+    try:
+        chat_model = ChatModel.from_name(target_model)
+        from beeai_framework.backend.message import UserMessage  # type: ignore
+
+        messages = [
+            UserMessage(system_prompt),
+            UserMessage(user_prompt),
+        ]
+        # Run synchronously via asyncio wrapper
+        import asyncio
+
+        async def _run():
+            result = await chat_model.run(messages)
+            return result.last_message.text if result and result.last_message else ""
+
+        new_text = asyncio.run(_run())
+    except Exception as e:
+        logger.error(f"Failed to regenerate criteria with LLM for {scholarship}/{agent_name}: {e}")
+        raise HTTPException(status_code=500, detail="LLM criteria generation failed")
+
+    if not new_text or len(new_text) < 100:
+        raise HTTPException(status_code=500, detail="Generated criteria text is too short or empty")
+
+    return {
+        "scholarship": scholarship,
+        "agent": agent_name,
+        "criteria_ref": crit_ref,
+        "current_criteria_text": current_text,
+        "proposed_criteria_text": new_text,
+    }
 
 
 @app.get("/criteria", tags=["Criteria"])

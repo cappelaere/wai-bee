@@ -58,32 +58,65 @@ def find_attachment_files(
     wai_number = wai_folder.name
     
     # Pattern for main application file: {WAI}_{xx}.pdf
-    main_app_pattern = re.compile(rf"^{wai_number}_\d+\.pdf$")
+    main_app_pattern = re.compile(rf"^{re.escape(wai_number)}_\d+\.pdf$", re.IGNORECASE)
+    # Pattern for attachment files: {WAI}_{number}_{number}.(pdf|docx)
+    attachment_pattern = re.compile(
+        rf"^{re.escape(wai_number)}_(\d+)_(\d+)\.(pdf|docx)$",
+        re.IGNORECASE,
+    )
     
-    # Find all PDF and DOCX files
-    attachments = []
+    candidates: List[tuple[Path, int, int]] = []
     
-    # Scan for PDF files
-    for pdf_file in wai_folder.glob("*.pdf"):
-        # Skip if it matches the main application pattern
-        if main_app_pattern.match(pdf_file.name):
-            logger.debug(f"Skipping main application file: {pdf_file.name}")
+    # Scan for PDF and DOCX files
+    for file_path in wai_folder.iterdir():
+        if not file_path.is_file():
             continue
-        attachments.append(pdf_file)
+        
+        # Skip hidden files
+        if file_path.name.startswith("."):
+            continue
+        
+        # Skip main application PDF
+        if main_app_pattern.match(file_path.name):
+            logger.debug(f"Skipping main application file: {file_path.name}")
+            continue
+        
+        match = attachment_pattern.match(file_path.name)
+        if not match:
+            # Ignore files that don't match the attachment naming convention
+            logger.debug(f"Ignoring non-attachment file: {file_path.name}")
+            continue
+        
+        major_idx = int(match.group(1))
+        minor_idx = int(match.group(2))
+        candidates.append((file_path, major_idx, minor_idx))
     
-    # Scan for DOCX files
-    for docx_file in wai_folder.glob("*.docx"):
-        attachments.append(docx_file)
+    if not candidates:
+        logger.info(f"No attachment files found in {wai_folder.name}")
+        return []
     
-    # Sort by filename
-    attachments.sort(key=lambda x: x.name)
+    # Sort by numeric indices (group, then file index)
+    candidates.sort(key=lambda item: (item[1], item[2]))
     
-    # Limit to max_files
-    result = attachments[:max_files]
+    # Prefer the lowest group index and the first max_files file indices within it
+    lowest_group = min(c[1] for c in candidates)
+    filtered = [
+        c for c in candidates
+        if c[1] == lowest_group and 1 <= c[2] <= max_files
+    ]
     
-    logger.info(f"Found {len(result)} attachment files in {wai_folder.name} (max: {max_files})")
+    # If we didn't get enough within 1..max_files, fall back to the first max_files overall
+    if len(filtered) < max_files:
+        filtered = candidates[:max_files]
     
-    return result
+    result_files = [c[0] for c in filtered]
+    
+    logger.info(
+        f"Found {len(result_files)} attachment files in {wai_folder.name} "
+        f"(requested max: {max_files})"
+    )
+    
+    return result_files
 
 
 def get_attachment_output_path(

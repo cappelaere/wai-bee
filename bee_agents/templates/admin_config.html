@@ -1,0 +1,442 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin Configuration - Scholarship Management System</title>
+    <link rel="icon" type="image/x-icon" href="/favicon.ico">
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🛠️ Admin Configuration</h1>
+            <p>Manage scoring weights and evaluation criteria for each scholarship</p>
+        </div>
+
+        <div class="content">
+            <div class="section">
+                <h2>🎓 Select Scholarship</h2>
+                <p>Choose a scholarship to configure:</p>
+                <select id="scholarshipSelect" style="padding: 8px; min-width: 260px;">
+                    <option value="">Loading scholarships...</option>
+                </select>
+                <span id="scholarshipStatus" style="margin-left: 10px; color: #666;"></span>
+            </div>
+
+            <div class="section">
+                <h2>⚖️ Scoring Weights</h2>
+                <p>Adjust how much each agent contributes to the final score. Weights must sum to 1.0.</p>
+                <div id="weightsContainer" class="api-section">
+                    <p style="color:#666;">Select a scholarship to load weights.</p>
+                </div>
+            </div>
+
+            <div class="section">
+                <h2>🧾 Evaluation Criteria</h2>
+                <p>Edit the criteria text used to build prompts for each agent. You can also ask an LLM to propose an updated rubric.</p>
+
+                <label for="agentSelect"><strong>Agent:</strong></label>
+                <select id="agentSelect" style="padding: 6px; min-width: 220px; margin-left: 6px;">
+                    <option value="">Select agent...</option>
+                </select>
+
+                <div id="criteriaEditors" style="margin-top: 16px; display: none;">
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
+                        <div>
+                            <h3>Current Criteria (Markdown)</h3>
+                            <textarea id="currentCriteria" rows="12" style="width: 100%; font-family: monospace;"></textarea>
+                            <h4 style="margin-top:8px;">Preview</h4>
+                            <div id="currentCriteriaPreview"
+                                 class="markdown-preview"
+                                 style="border:1px solid #ddd; padding:8px; border-radius:4px; background:#fafafa; max-height:260px; overflow:auto;"></div>
+                        </div>
+                        <div>
+                            <h3>LLM Proposal (Markdown)</h3>
+                            <textarea id="proposedCriteria" rows="12" style="width: 100%; font-family: monospace;" placeholder="Click 'Regenerate with LLM' to see a proposal"></textarea>
+                            <h4 style="margin-top:8px;">Preview</h4>
+                            <div id="proposedCriteriaPreview"
+                                 class="markdown-preview"
+                                 style="border:1px solid #ddd; padding:8px; border-radius:4px; background:#fafafa; max-height:260px; overflow:auto;"></div>
+                        </div>
+                    </div>
+                    <div style="margin-top: 12px; display:flex; gap:8px; flex-wrap:wrap;">
+                        <button id="saveCriteriaBtn" style="padding:8px 14px; background:#667eea; color:white; border:none; border-radius:6px; cursor:pointer;">
+                            💾 Save Criteria
+                        </button>
+                        <button id="regenerateCriteriaBtn" style="padding:8px 14px; background:#764ba2; color:white; border:none; border-radius:6px; cursor:pointer;">
+                            🤖 Regenerate with LLM
+                        </button>
+                        <input id="targetModelInput" type="text" style="padding:6px; min-width:260px;"
+                               placeholder="Target model (e.g., ollama:llama3.2:3b)">
+                    </div>
+                    <div id="criteriaStatus" style="margin-top:8px; color:#666;"></div>
+                </div>
+            </div>
+
+            <div class="section">
+                <h2>🔁 Re-run Processing Pipeline</h2>
+                <p>Trigger the scholarship processing pipeline again with custom options. This is currently a stub and does not yet run the full workflow.</p>
+                <div id="pipelineSection" class="api-section">
+                    <div style="display:flex; flex-wrap:wrap; gap:12px; align-items:center;">
+                        <div>
+                            <label for="pipelineMaxApplicants"><strong>Max applicants to process</strong></label><br>
+                            <input id="pipelineMaxApplicants"
+                                   type="number"
+                                   min="1"
+                                   step="1"
+                                   placeholder="e.g. 10"
+                                   style="padding:6px; width:140px;">
+                        </div>
+                        <label style="display:flex; align-items:center; gap:4px;">
+                            <input type="checkbox" id="pipelineStopOnError">
+                            <span>Stop on first error</span>
+                        </label>
+                        <label style="display:flex; align-items:center; gap:4px;">
+                            <input type="checkbox" id="pipelineSkipProcessed" checked>
+                            <span>Skip already processed</span>
+                        </label>
+                        <button id="runPipelineBtn"
+                                style="padding:8px 16px; background:#667eea; color:white; border:none; border-radius:6px; cursor:pointer;">
+                            ▶️ Run Pipeline (stub)
+                        </button>
+                    </div>
+                    <div id="pipelineStatus" style="margin-top:8px; color:#666;"></div>
+                </div>
+            </div>
+        </div>
+
+        <div class="footer">
+            <p>Admin Configuration | Scholarship Management System</p>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <script>
+        const scholarshipSelect = document.getElementById('scholarshipSelect');
+        const scholarshipStatus = document.getElementById('scholarshipStatus');
+        const weightsContainer = document.getElementById('weightsContainer');
+        const agentSelect = document.getElementById('agentSelect');
+        const criteriaEditors = document.getElementById('criteriaEditors');
+        const currentCriteria = document.getElementById('currentCriteria');
+        const proposedCriteria = document.getElementById('proposedCriteria');
+        const currentCriteriaPreview = document.getElementById('currentCriteriaPreview');
+        const proposedCriteriaPreview = document.getElementById('proposedCriteriaPreview');
+        const saveCriteriaBtn = document.getElementById('saveCriteriaBtn');
+        const regenerateCriteriaBtn = document.getElementById('regenerateCriteriaBtn');
+        const criteriaStatus = document.getElementById('criteriaStatus');
+        const targetModelInput = document.getElementById('targetModelInput');
+        const pipelineMaxApplicants = document.getElementById('pipelineMaxApplicants');
+        const pipelineStopOnError = document.getElementById('pipelineStopOnError');
+        const pipelineSkipProcessed = document.getElementById('pipelineSkipProcessed');
+        const runPipelineBtn = document.getElementById('runPipelineBtn');
+        const pipelineStatus = document.getElementById('pipelineStatus');
+
+        async function loadScholarships() {
+            try {
+                // Use chat API helper to get accessible scholarships
+                const resp = await fetch('/api/user/scholarships', { credentials: 'include' });
+                if (!resp.ok) throw new Error('Failed to load scholarships');
+                const scholarships = await resp.json();
+
+                scholarshipSelect.innerHTML = '<option value=\"\">Select scholarship...</option>';
+                scholarships.forEach(s => {
+                    const opt = document.createElement('option');
+                    opt.value = s.id;
+                    opt.textContent = s.name;
+                    scholarshipSelect.appendChild(opt);
+                });
+
+                scholarshipStatus.textContent = '';
+            } catch (e) {
+                console.error(e);
+                scholarshipSelect.innerHTML = '<option value=\"\">Error loading scholarships</option>';
+                scholarshipStatus.textContent = 'Failed to load scholarships';
+            }
+        }
+
+        async function loadWeights(scholarship) {
+            if (!scholarship) {
+                weightsContainer.innerHTML = '<p style=\"color:#666;\">Select a scholarship to load weights.</p>';
+                return;
+            }
+            try {
+                const resp = await fetch(`/admin/${encodeURIComponent(scholarship)}/weights`);
+                if (!resp.ok) throw new Error('Failed to load weights');
+                const data = await resp.json();
+
+                const rows = Object.entries(data.weights || {}).map(
+                    ([name, info]) => `
+                    <tr>
+                        <td>${name}</td>
+                        <td>${info.description || ''}</td>
+                        <td style=\"text-align:right;\">
+                            <input type=\"number\" step=\"0.01\" min=\"0\" max=\"1\" 
+                                   data-agent=\"${name}\" class=\"weight-input\"
+                                   value=\"${info.weight.toFixed(2)}\"
+                                   style=\"width:80px; padding:4px; text-align:right;\">
+                        </td>
+                    </tr>`
+                ).join('');
+
+                weightsContainer.innerHTML = `
+                    <table style=\"width:100%; border-collapse:collapse;\">
+                        <thead>
+                            <tr>
+                                <th style=\"text-align:left; padding-bottom:4px;\">Agent</th>
+                                <th style=\"text-align:left; padding-bottom:4px;\">Description</th>
+                                <th style=\"text-align:right; padding-bottom:4px;\">Weight</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${rows}
+                        </tbody>
+                    </table>
+                    <div style=\"margin-top:10px; display:flex; gap:8px; align-items:center;\">
+                        <button id=\"saveWeightsBtn\" style=\"padding:6px 12px; background:#667eea; color:white; border:none; border-radius:6px; cursor:pointer;\">
+                            💾 Save Weights
+                        </button>
+                        <span id=\"weightsStatus\" style=\"color:#666;\"></span>
+                    </div>
+                `;
+
+                document.getElementById('saveWeightsBtn').addEventListener('click', () => saveWeights(scholarship));
+
+                // Populate agent dropdown
+                agentSelect.innerHTML = '<option value=\"\">Select agent...</option>';
+                Object.keys(data.weights || {}).forEach(name => {
+                    const opt = document.createElement('option');
+                    opt.value = name;
+                    opt.textContent = name;
+                    agentSelect.appendChild(opt);
+                });
+
+            } catch (e) {
+                console.error(e);
+                weightsContainer.innerHTML = '<p style=\"color:#c00;\">Failed to load weights.</p>';
+            }
+        }
+
+        async function saveWeights(scholarship) {
+            const inputs = document.querySelectorAll('.weight-input');
+            const weights = {};
+            let total = 0;
+            inputs.forEach(input => {
+                const name = input.getAttribute('data-agent');
+                const val = parseFloat(input.value || '0');
+                weights[name] = { weight: val };
+                total += val;
+            });
+
+            const statusEl = document.getElementById('weightsStatus');
+            if (Math.abs(total - 1.0) > 0.001) {
+                statusEl.textContent = `Weights must sum to 1.0 (current: ${total.toFixed(3)})`;
+                statusEl.style.color = '#c00';
+                return;
+            }
+
+            try {
+                const resp = await fetch(`/admin/${encodeURIComponent(scholarship)}/weights`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ weights }),
+                });
+                if (!resp.ok) {
+                    const err = await resp.json().catch(() => ({}));
+                    throw new Error(err.detail || 'Failed to save weights');
+                }
+                statusEl.textContent = 'Weights saved and artifacts regenerated.';
+                statusEl.style.color = '#2c7a7b';
+            } catch (e) {
+                console.error(e);
+                statusEl.textContent = e.message;
+                statusEl.style.color = '#c00';
+            }
+        }
+
+        function updateCurrentCriteriaPreview() {
+            const text = currentCriteria.value || '';
+            if (typeof marked !== 'undefined') {
+                currentCriteriaPreview.innerHTML = marked.parse(text);
+            } else {
+                currentCriteriaPreview.textContent = text;
+            }
+        }
+
+        function updateProposedCriteriaPreview() {
+            const text = proposedCriteria.value || '';
+            if (typeof marked !== 'undefined') {
+                proposedCriteriaPreview.innerHTML = marked.parse(text);
+            } else {
+                proposedCriteriaPreview.textContent = text;
+            }
+        }
+
+        currentCriteria.addEventListener('input', updateCurrentCriteriaPreview);
+        proposedCriteria.addEventListener('input', updateProposedCriteriaPreview);
+
+        async function loadCriteria(scholarship, agent) {
+            if (!scholarship || !agent) {
+                criteriaEditors.style.display = 'none';
+                return;
+            }
+            try {
+                const resp = await fetch(`/admin/${encodeURIComponent(scholarship)}/criteria/${encodeURIComponent(agent)}`);
+                if (!resp.ok) throw new Error('Failed to load criteria');
+                const data = await resp.json();
+                currentCriteria.value = data.criteria_text || '';
+                proposedCriteria.value = '';
+                criteriaEditors.style.display = 'block';
+                criteriaStatus.textContent = '';
+
+                // Update previews
+                updateCurrentCriteriaPreview();
+                updateProposedCriteriaPreview();
+            } catch (e) {
+                console.error(e);
+                criteriaEditors.style.display = 'none';
+                alert('Failed to load criteria: ' + e.message);
+            }
+        }
+
+        async function saveCriteria(scholarship, agent) {
+            const text = currentCriteria.value || '';
+            criteriaStatus.textContent = '';
+            try {
+                const resp = await fetch(`/admin/${encodeURIComponent(scholarship)}/criteria/${encodeURIComponent(agent)}`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ criteria_text: text }),
+                });
+                if (!resp.ok) {
+                    const err = await resp.json().catch(() => ({}));
+                    throw new Error(err.detail || 'Failed to save criteria');
+                }
+                criteriaStatus.textContent = 'Criteria saved and artifacts regenerated.';
+                criteriaStatus.style.color = '#2c7a7b';
+            } catch (e) {
+                console.error(e);
+                criteriaStatus.textContent = e.message;
+                criteriaStatus.style.color = '#c00';
+            }
+        }
+
+        async function regenerateCriteria(scholarship, agent) {
+            const baseDescription = '';
+            const targetModel = targetModelInput.value || '';
+            criteriaStatus.textContent = 'Generating proposal with LLM...';
+            criteriaStatus.style.color = '#666';
+            try {
+                const resp = await fetch(`/admin/${encodeURIComponent(scholarship)}/criteria/${encodeURIComponent(agent)}/regenerate`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        base_description: baseDescription,
+                        target_model: targetModel || undefined,
+                    }),
+                });
+                if (!resp.ok) {
+                    const err = await resp.json().catch(() => ({}));
+                    throw new Error(err.detail || 'LLM regeneration failed');
+                }
+                const data = await resp.json();
+                // Show proposed text, keep current unchanged
+                proposedCriteria.value = data.proposed_criteria_text || '';
+                criteriaStatus.textContent = 'LLM proposal loaded in right-hand editor. Copy any parts you like into Current Criteria and click Save.';
+                criteriaStatus.style.color = '#2c7a7b';
+
+                // Update proposal preview
+                updateProposedCriteriaPreview();
+            } catch (e) {
+                console.error(e);
+                criteriaStatus.textContent = e.message;
+                criteriaStatus.style.color = '#c00';
+            }
+        }
+
+        async function runPipeline(scholarship) {
+            if (!scholarship) {
+                pipelineStatus.textContent = 'Select a scholarship first.';
+                pipelineStatus.style.color = '#c00';
+                return;
+            }
+
+            let maxApplicants = null;
+            const raw = (pipelineMaxApplicants.value || '').trim();
+            if (raw) {
+                const parsed = parseInt(raw, 10);
+                if (isNaN(parsed) || parsed <= 0) {
+                    pipelineStatus.textContent = 'Max applicants must be a positive integer.';
+                    pipelineStatus.style.color = '#c00';
+                    return;
+                }
+                maxApplicants = parsed;
+            }
+
+            const payload = {
+                max_applicants: maxApplicants,
+                stop_on_error: pipelineStopOnError.checked,
+                skip_processed: pipelineSkipProcessed.checked,
+            };
+
+            pipelineStatus.textContent = 'Submitting pipeline request (stub)...';
+            pipelineStatus.style.color = '#666';
+
+            try {
+                const resp = await fetch(`/admin/${encodeURIComponent(scholarship)}/pipeline/run`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload),
+                });
+                const data = await resp.json().catch(() => ({}));
+                if (!resp.ok) {
+                    throw new Error(data.detail || 'Failed to trigger pipeline');
+                }
+                pipelineStatus.textContent = data.detail || 'Pipeline trigger accepted (stub).';
+                pipelineStatus.style.color = '#2c7a7b';
+            } catch (e) {
+                console.error(e);
+                pipelineStatus.textContent = e.message;
+                pipelineStatus.style.color = '#c00';
+            }
+        }
+
+        scholarshipSelect.addEventListener('change', () => {
+            const sch = scholarshipSelect.value;
+            scholarshipStatus.textContent = sch ? `Selected: ${sch}` : '';
+            loadWeights(sch);
+            criteriaEditors.style.display = 'none';
+        });
+
+        agentSelect.addEventListener('change', () => {
+            const sch = scholarshipSelect.value;
+            const agent = agentSelect.value;
+            loadCriteria(sch, agent);
+        });
+
+        saveCriteriaBtn.addEventListener('click', () => {
+            const sch = scholarshipSelect.value;
+            const agent = agentSelect.value;
+            if (!sch || !agent) return;
+            saveCriteria(sch, agent);
+        });
+
+        regenerateCriteriaBtn.addEventListener('click', () => {
+            const sch = scholarshipSelect.value;
+            const agent = agentSelect.value;
+            if (!sch || !agent) return;
+            regenerateCriteria(sch, agent);
+        });
+
+        runPipelineBtn.addEventListener('click', () => {
+            const sch = scholarshipSelect.value;
+            runPipeline(sch);
+        });
+
+        // Initialize
+        loadScholarships();
+    </script>
+</body>
+</html>
+
+

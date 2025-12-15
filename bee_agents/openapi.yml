@@ -12,7 +12,7 @@ paths:
     get:
       summary: Favicon
       description: Serve the favicon.
-      operationId: favicon_favicon_ico_get
+      operationId: favicon
       responses:
         '200':
           description: Successful Response
@@ -40,7 +40,7 @@ paths:
       description: "Get scholarship information and details.\n\nArgs:\n    scholarship:\
         \ Name of the scholarship\n\nReturns:\n    Dictionary containing scholarship\
         \ name, description, eligibility,\n    requirements, and other relevant information"
-      operationId: get_scholarship_info_scholarship_get
+      operationId: get_scholarship_info
       parameters:
       - name: scholarship
         in: query
@@ -69,7 +69,7 @@ paths:
       summary: Health Check
       description: "Health check endpoint for a specific scholarship.\n\nArgs:\n \
         \   scholarship: Name of the scholarship"
-      operationId: health_check_health_get
+      operationId: health_check
       parameters:
       - name: scholarship
         in: query
@@ -97,7 +97,7 @@ paths:
       - Documentation
       summary: Get Openapi Yaml
       description: Download OpenAPI specification as YAML file.
-      operationId: get_openapi_yaml_openapi_yml_get
+      operationId: get_openapi_yaml
       responses:
         '200':
           description: Successful Response
@@ -110,7 +110,7 @@ paths:
       - Documentation
       summary: Get Openapi Json
       description: Download OpenAPI specification as JSON file.
-      operationId: get_openapi_json_openapi_json_get
+      operationId: get_openapi_json
       responses:
         '200':
           description: Successful Response
@@ -126,7 +126,7 @@ paths:
         \    scholarship: Name of the scholarship\n    limit: Maximum number of results\
         \ to return (1-100)\n    \nReturns:\n    TopScoresResponse with list of top\
         \ scoring applications"
-      operationId: get_top_scores_top_scores_get
+      operationId: get_top_scores
       parameters:
       - name: scholarship
         in: query
@@ -168,7 +168,7 @@ paths:
       description: "Get score for a specific application.\n\nArgs:\n    scholarship:\
         \ Name of the scholarship\n    wai_number: WAI application number\n    \n\
         Returns:\n    ScoreResponse with application scores and applicant information"
-      operationId: get_individual_score_score_get
+      operationId: get_individual_score
       parameters:
       - name: scholarship
         in: query
@@ -207,7 +207,7 @@ paths:
       description: "Get statistics for all applications in a specific scholarship.\n\
         \nArgs:\n    scholarship: Name of the scholarship\n\nReturns:\n    StatisticsResponse\
         \ with aggregated statistics"
-      operationId: get_statistics_statistics_get
+      operationId: get_statistics
       parameters:
       - name: scholarship
         in: query
@@ -238,7 +238,7 @@ paths:
       description: "Get detailed application analysis.\n\nArgs:\n    scholarship:\
         \ Name of the scholarship\n    wai_number: WAI application number\n    \n\
         Returns:\n    ApplicationAnalysisResponse with detailed analysis"
-      operationId: get_application_analysis_application_get
+      operationId: get_application_analysis
       parameters:
       - name: scholarship
         in: query
@@ -277,7 +277,7 @@ paths:
       description: "Get academic analysis for an application.\n\nArgs:\n    scholarship:\
         \ Name of the scholarship\n    wai_number: WAI application number\n    \n\
         Returns:\n    AcademicAnalysisResponse with academic analysis"
-      operationId: get_academic_analysis_academic_get
+      operationId: get_academic_analysis
       parameters:
       - name: scholarship
         in: query
@@ -316,7 +316,7 @@ paths:
       description: "Get combined essay analysis for an application.\n\nArgs:\n   \
         \ scholarship: Name of the scholarship\n    wai_number: WAI application number\n\
         \    \nReturns:\n    Combined analysis of all essays"
-      operationId: get_essay_analysis_essay_get
+      operationId: get_essay_analysis
       parameters:
       - name: scholarship
         in: query
@@ -354,7 +354,7 @@ paths:
       description: "Get combined recommendation analysis for an application.\n\nArgs:\n\
         \    scholarship: Name of the scholarship\n    wai_number: WAI application\
         \ number\n    \nReturns:\n    Combined analysis of all recommendations"
-      operationId: get_recommendation_analysis_recommendation_get
+      operationId: get_recommendation_analysis
       parameters:
       - name: scholarship
         in: query
@@ -393,7 +393,7 @@ paths:
         \nArgs:\n    scholarship: Name of the scholarship\n    wai_number: WAI application\
         \ number\n    \nReturns:\n    Attachment files with download URLs and processing\
         \ information"
-      operationId: list_attachments_attachments_get
+      operationId: list_attachments
       parameters:
       - name: scholarship
         in: query
@@ -432,7 +432,7 @@ paths:
         \nArgs:\n    scholarship: Scholarship name\n    wai_number: WAI application\
         \ number\n    filename: Text filename (e.g., 101127_30_1.txt)\n    \nReturns:\n\
         \    HTML page with styled text content"
-      operationId: download_text_attachment_attachments_text__scholarship___wai_number___filename__get
+      operationId: download_text_attachment
       parameters:
       - name: scholarship
         in: path
@@ -473,7 +473,7 @@ paths:
       description: "Download original PDF attachment file (admin only).\n\nArgs:\n\
         \    scholarship: Scholarship name\n    wai_number: WAI application number\n\
         \    filename: PDF filename\n    \nReturns:\n    PDF file download response"
-      operationId: download_attachment_attachments__scholarship___wai_number___filename__get
+      operationId: download_attachment_scholarship
       parameters:
       - name: scholarship
         in: path
@@ -513,7 +513,7 @@ paths:
       description: "List all available evaluation criteria for the scholarship.\n\n\
         Args:\n    scholarship: Name of the scholarship\n\nReturns:\n    List of available\
         \ criteria types with descriptions"
-      operationId: list_criteria_criteria_get
+      operationId: list_criteria
       parameters:
       - name: scholarship
         in: query
@@ -544,7 +544,7 @@ paths:
         \ Type of criteria (application, academic, essay, recommendation, social)\n\
         \    scholarship: Name of the scholarship\n    \nReturns:\n    Criteria content\
         \ as text"
-      operationId: get_criteria_criteria__criteria_type__get
+      operationId: get_criteria
       parameters:
       - name: criteria_type
         in: path
@@ -580,7 +580,7 @@ paths:
       description: "Get agent configuration and scoring weights for the scholarship.\n\
         \nArgs:\n    scholarship: Name of the scholarship\n\nReturns:\n    Agent configuration\
         \ including scoring weights and evaluation details"
-      operationId: get_agents_config_agents_get
+      operationId: get_agents_config
       parameters:
       - name: scholarship
         in: query
@@ -611,7 +611,7 @@ paths:
         \ Name of the agent (application, academic, essay, recommendation, attachment)\n\
         \    scholarship: Name of the scholarship\n    \nReturns:\n    Agent configuration\
         \ details including weight and evaluation criteria"
-      operationId: get_agent_config_agents__agent_name__get
+      operationId: get_agent_config
       parameters:
       - name: agent_name
         in: path

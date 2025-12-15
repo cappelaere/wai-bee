@@ -19,3 +19,6 @@ colorlog==6.10.1
 
 # Environment
 typing_extensions==4.15.0
+
+# YAML config support
+PyYAML==6.0.3

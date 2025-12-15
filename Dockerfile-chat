@@ -65,6 +65,7 @@ COPY --chown=chatuser:chatuser bee_agents/openapi.json bee_agents/
 COPY --chown=chatuser:chatuser bee_agents/static/ bee_agents/static/
 COPY --chown=chatuser:chatuser bee_agents/templates/ bee_agents/templates/
 COPY --chown=chatuser:chatuser config/ config/
+COPY --chown=chatuser:chatuser scripts/ scripts/
 
 # Switch to non-root user
 USER chatuser
@@ -84,5 +85,8 @@ ENV HOST=0.0.0.0 \
     PORT=8100 \
     CHAT_MODEL=anthropic:claude-sonnet-4-20250514
 
-# Run the chat server with uvicorn and auto-reload for development
-CMD ["uvicorn", "bee_agents.chat_api:app", "--host", "0.0.0.0", "--port", "8100", "--reload"]
+# Run the chat server with uvicorn and auto-reload for development.
+# Limit reload watching to the application code directory so that changes in
+# mounted data/outputs folders (e.g., when workflows write artifacts) do not
+# constantly restart the server and drop WebSocket connections.
+CMD ["uvicorn", "bee_agents.chat_api:app", "--host", "0.0.0.0", "--port", "8100", "--reload", "--reload-dir", "bee_agents"]

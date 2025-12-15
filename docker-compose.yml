@@ -62,6 +62,8 @@ services:
       - wai-network
 
   # Chat Frontend
+  # models: 
+  # openai:gpt-5.2, openai:gpt5, ollama:gpt-oss:latest, anthropic:claude-sonnet-4-20250514
   chat:
     image: wai-chat:latest
     build:
@@ -75,13 +77,15 @@ services:
       - PORT=8100
       - AGENT_MODE=single
       - CHAT_MODEL=anthropic:claude-sonnet-4-20250514
-      - ORCHESTRATOR_MODEL=ollama/llama3:latest
+      - ORCHESTRATOR_MODEL=ollama:llama3:latest
       - API_SERVER_URL=http://api:8200
+      - OLLAMA_API_BASE=http://host.docker.internal:11434
+      - LANGFUSE_ENABLED=true
     env_file:
       - .env
     volumes:
       - ./bee_agents:/app/bee_agents:ro
-      - ./data:/app/data:ro
+      - ./data:/app/data
       - ./outputs:/app/outputs:ro
       - ./logs:/app/logs
       - ./config:/app/config:ro

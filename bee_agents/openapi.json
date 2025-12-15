@@ -20,7 +20,7 @@
       "get": {
         "summary": "Favicon",
         "description": "Serve the favicon.",
-        "operationId": "favicon_favicon_ico_get",
+        "operationId": "favicon",
         "responses": {
           "200": {
             "description": "Successful Response",
@@ -59,8 +59,8 @@
           "Scholarship"
         ],
         "summary": "Get Scholarship Info",
-        "description": "Get scholarship information and details.\n\nArgs:\n    scholarship: Name of the scholarship\n\nReturns:\n    Dictionary containing scholarship name, description, eligibility,\n    requirements, and other relevant information",
-        "operationId": "get_scholarship_info_scholarship_get",
+        "description": "Get scholarship information and details.\n\nArgs:\n    scholarship: Name of the scholarship\n\nReturns:\n    Dictionary containing scholarship name, description, eligibility,\n    requirements, and other relevant information Supports multi-tenancy with scholarship-based access control.",
+        "operationId": "get_scholarship_info",
         "parameters": [
           {
             "name": "scholarship",
@@ -92,6 +92,27 @@
                 }
               }
             }
+          },
+          "403": {
+            "description": "Access denied to this scholarship",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "detail": {
+                      "type": "string"
+                    }
+                  }
+                },
+                "example": {
+                  "detail": "Access denied to Evans_Wings scholarship"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Scholarship not found"
           }
         }
       }
@@ -103,7 +124,7 @@
         ],
         "summary": "Health Check",
         "description": "Health check endpoint for a specific scholarship.\n\nArgs:\n    scholarship: Name of the scholarship",
-        "operationId": "health_check_health_get",
+        "operationId": "health_check",
         "parameters": [
           {
             "name": "scholarship",
@@ -146,7 +167,7 @@
         ],
         "summary": "Get Openapi Yaml",
         "description": "Download OpenAPI specification as YAML file.",
-        "operationId": "get_openapi_yaml_openapi_yml_get",
+        "operationId": "get_openapi_yaml",
         "responses": {
           "200": {
             "description": "Successful Response",
@@ -166,7 +187,7 @@
         ],
         "summary": "Get Openapi Json",
         "description": "Download OpenAPI specification as JSON file.",
-        "operationId": "get_openapi_json_openapi_json_get",
+        "operationId": "get_openapi_json",
         "responses": {
           "200": {
             "description": "Successful Response",
@@ -185,8 +206,8 @@
           "Scores"
         ],
         "summary": "Get Top Scores",
-        "description": "Get top scoring applications for a specific scholarship.\n\nArgs:\n    scholarship: Name of the scholarship\n    limit: Maximum number of results to return (1-100)\n    \nReturns:\n    TopScoresResponse with list of top scoring applications",
-        "operationId": "get_top_scores_top_scores_get",
+        "description": "Get top scoring applications for a specific scholarship.\n\nArgs:\n    scholarship: Name of the scholarship\n    limit: Maximum number of results to return (1-100)\n    \nReturns:\n    TopScoresResponse with list of top scoring applications Supports multi-tenancy with scholarship-based access control.",
+        "operationId": "get_top_scores",
         "parameters": [
           {
             "name": "scholarship",
@@ -234,6 +255,27 @@
                 }
               }
             }
+          },
+          "403": {
+            "description": "Access denied to this scholarship",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "detail": {
+                      "type": "string"
+                    }
+                  }
+                },
+                "example": {
+                  "detail": "Access denied to Evans_Wings scholarship"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Scholarship not found"
           }
         }
       }
@@ -245,7 +287,7 @@
         ],
         "summary": "Get Individual Score",
         "description": "Get score for a specific application.\n\nArgs:\n    scholarship: Name of the scholarship\n    wai_number: WAI application number\n    \nReturns:\n    ScoreResponse with application scores and applicant information",
-        "operationId": "get_individual_score_score_get",
+        "operationId": "get_individual_score",
         "parameters": [
           {
             "name": "scholarship",
@@ -301,7 +343,7 @@
         ],
         "summary": "Get Statistics",
         "description": "Get statistics for all applications in a specific scholarship.\n\nArgs:\n    scholarship: Name of the scholarship\n\nReturns:\n    StatisticsResponse with aggregated statistics",
-        "operationId": "get_statistics_statistics_get",
+        "operationId": "get_statistics",
         "parameters": [
           {
             "name": "scholarship",
@@ -345,8 +387,8 @@
           "Analysis"
         ],
         "summary": "Get Application Analysis",
-        "description": "Get detailed application analysis.\n\nArgs:\n    scholarship: Name of the scholarship\n    wai_number: WAI application number\n    \nReturns:\n    ApplicationAnalysisResponse with detailed analysis",
-        "operationId": "get_application_analysis_application_get",
+        "description": "Get detailed application analysis.\n\nArgs:\n    scholarship: Name of the scholarship\n    wai_number: WAI application number\n    \nReturns:\n    ApplicationAnalysisResponse with detailed analysis Supports multi-tenancy with scholarship-based access control.",
+        "operationId": "get_application_analysis",
         "parameters": [
           {
             "name": "scholarship",
@@ -391,6 +433,27 @@
                 }
               }
             }
+          },
+          "403": {
+            "description": "Access denied to this scholarship",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "detail": {
+                      "type": "string"
+                    }
+                  }
+                },
+                "example": {
+                  "detail": "Access denied to Evans_Wings scholarship"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Scholarship not found"
           }
         }
       }
@@ -402,7 +465,7 @@
         ],
         "summary": "Get Academic Analysis",
         "description": "Get academic analysis for an application.\n\nArgs:\n    scholarship: Name of the scholarship\n    wai_number: WAI application number\n    \nReturns:\n    AcademicAnalysisResponse with academic analysis",
-        "operationId": "get_academic_analysis_academic_get",
+        "operationId": "get_academic_analysis",
         "parameters": [
           {
             "name": "scholarship",
@@ -458,7 +521,7 @@
         ],
         "summary": "Get Essay Analysis",
         "description": "Get combined essay analysis for an application.\n\nArgs:\n    scholarship: Name of the scholarship\n    wai_number: WAI application number\n    \nReturns:\n    Combined analysis of all essays",
-        "operationId": "get_essay_analysis_essay_get",
+        "operationId": "get_essay_analysis",
         "parameters": [
           {
             "name": "scholarship",
@@ -512,7 +575,7 @@
         ],
         "summary": "Get Recommendation Analysis",
         "description": "Get combined recommendation analysis for an application.\n\nArgs:\n    scholarship: Name of the scholarship\n    wai_number: WAI application number\n    \nReturns:\n    Combined analysis of all recommendations",
-        "operationId": "get_recommendation_analysis_recommendation_get",
+        "operationId": "get_recommendation_analysis",
         "parameters": [
           {
             "name": "scholarship",
@@ -566,7 +629,7 @@
         ],
         "summary": "List Attachments",
         "description": "List all attachment files for an application with processing metadata.\n\nArgs:\n    scholarship: Name of the scholarship\n    wai_number: WAI application number\n    \nReturns:\n    Attachment files with download URLs and processing information",
-        "operationId": "list_attachments_attachments_get",
+        "operationId": "list_attachments",
         "parameters": [
           {
             "name": "scholarship",
@@ -620,7 +683,7 @@
         ],
         "summary": "Download Text Attachment",
         "description": "View a processed text attachment file in browser with styling.\n\nArgs:\n    scholarship: Scholarship name\n    wai_number: WAI application number\n    filename: Text filename (e.g., 101127_30_1.txt)\n    \nReturns:\n    HTML page with styled text content",
-        "operationId": "download_text_attachment_attachments_text__scholarship___wai_number___filename__get",
+        "operationId": "download_text_attachment",
         "parameters": [
           {
             "name": "scholarship",
@@ -681,7 +744,7 @@
         ],
         "summary": "Download Attachment",
         "description": "Download original PDF attachment file (admin only).\n\nArgs:\n    scholarship: Scholarship name\n    wai_number: WAI application number\n    filename: PDF filename\n    \nReturns:\n    PDF file download response",
-        "operationId": "download_attachment_attachments__scholarship___wai_number___filename__get",
+        "operationId": "download_attachment_scholarship",
         "parameters": [
           {
             "name": "scholarship",
@@ -740,7 +803,7 @@
         ],
         "summary": "List Criteria",
         "description": "List all available evaluation criteria for the scholarship.\n\nArgs:\n    scholarship: Name of the scholarship\n\nReturns:\n    List of available criteria types with descriptions",
-        "operationId": "list_criteria_criteria_get",
+        "operationId": "list_criteria",
         "parameters": [
           {
             "name": "scholarship",
@@ -783,7 +846,7 @@
         ],
         "summary": "Get Criteria",
         "description": "Get evaluation criteria for a specific type.\n\nArgs:\n    criteria_type: Type of criteria (application, academic, essay, recommendation, social)\n    scholarship: Name of the scholarship\n    \nReturns:\n    Criteria content as text",
-        "operationId": "get_criteria_criteria__criteria_type__get",
+        "operationId": "get_criteria",
         "parameters": [
           {
             "name": "criteria_type",
@@ -835,7 +898,7 @@
         ],
         "summary": "Get Agents Config",
         "description": "Get agent configuration and scoring weights for the scholarship.\n\nArgs:\n    scholarship: Name of the scholarship\n\nReturns:\n    Agent configuration including scoring weights and evaluation details",
-        "operationId": "get_agents_config_agents_get",
+        "operationId": "get_agents_config",
         "parameters": [
           {
             "name": "scholarship",
@@ -878,7 +941,7 @@
         ],
         "summary": "Get Agent Config",
         "description": "Get configuration for a specific agent.\n\nArgs:\n    agent_name: Name of the agent (application, academic, essay, recommendation, attachment)\n    scholarship: Name of the scholarship\n    \nReturns:\n    Agent configuration details including weight and evaluation criteria",
-        "operationId": "get_agent_config_agents__agent_name__get",
+        "operationId": "get_agent_config",
         "parameters": [
           {
             "name": "agent_name",
@@ -1311,6 +1374,30 @@
           "type"
         ],
         "title": "ValidationError"
+      },
+      "Scholarship": {
+        "type": "string",
+        "enum": [
+          "Delaney_Wings",
+          "Evans_Wings"
+        ],
+        "description": "Available scholarship identifiers"
+      }
+    },
+    "parameters": {
+      "ScholarshipParam": {
+        "name": "scholarship",
+        "in": "query",
+        "required": true,
+        "schema": {
+          "type": "string",
+          "enum": [
+            "Delaney_Wings",
+            "Evans_Wings"
+          ],
+          "description": "Scholarship identifier"
+        },
+        "description": "The scholarship to query data for. Users can only access scholarships they are assigned to."
       }
     }
   }

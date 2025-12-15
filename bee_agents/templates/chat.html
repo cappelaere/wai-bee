@@ -33,7 +33,6 @@
                     <div class="profile-avatar" id="profileAvatar">👤</div>
                     <div class="profile-info">
                         <h3 id="profileUsername">Loading...</h3>
-                        <span class="profile-role" id="profileRole">User</span>
                     </div>
                     <button class="profile-logout-btn" id="profileLogoutBtn" title="Logout">
                         🚪 Logout
@@ -53,6 +52,11 @@
                         <select class="scholarship-selector" id="scholarshipSelector" disabled>
                             <option value="">Loading...</option>
                         </select>
+                    </div>
+                    <div class="profile-detail-item" id="adminSettingsRow" style="display:none;">
+                        <button class="admin-config-button" id="adminConfigButton" title="Configure scholarship criteria and weights">
+                            🛠️ Settings
+                        </button>
                     </div>
                 </div>
             </div>
@@ -141,9 +145,9 @@
                     }
                     
                     // Create role badge
-                    const roleBadge = role === 'admin' ? '👑 Admin' :
-                                     role === 'manager' ? '👤 Manager' :
-                                     '👁️ Reviewer';
+                    const roleBadge = role === 'admin' ? 'Admin' :
+                                     role === 'manager' ? 'Manager' :
+                                     'Reviewer';
                     
                     // Update header
                     userScholarshipsEl.innerHTML = `
@@ -165,19 +169,13 @@
         // Update profile card with user information
         function updateProfileCard(username, role, scholarshipText, permissions) {
             // Set avatar emoji based on role
-            const avatarEmoji = role === 'admin' ? '👑' :
+            const avatarEmoji = role === 'admin' ? '👤' :
                                role === 'manager' ? '👤' :
                                '👁️';
             document.getElementById('profileAvatar').textContent = avatarEmoji;
             
             // Set username
             document.getElementById('profileUsername').textContent = username;
-            
-            // Set role badge
-            const roleBadge = role === 'admin' ? '👑 Admin' :
-                             role === 'manager' ? '👤 Manager' :
-                             '👁️ Reviewer';
-            document.getElementById('profileRole').textContent = roleBadge;
             
             // Set role detail with description
             const roleDescriptions = {
@@ -191,12 +189,16 @@
             const accessText = permissions.length > 0 ? permissions.join(', ') : 'Read access';
             document.getElementById('profileAccessDetail').textContent = accessText;
             
-            // Show Observability button for admin users (in header)
+            // Show Observability button and Settings action for admin users
             const observabilityBtn = document.getElementById('observabilityButton');
+            const adminBtn = document.getElementById('adminConfigButton');
+            const adminSettingsRow = document.getElementById('adminSettingsRow');
             if (role === 'admin') {
                 observabilityBtn.style.display = 'inline-block';
+                if (adminSettingsRow) adminSettingsRow.style.display = 'flex';
             } else {
                 observabilityBtn.style.display = 'none';
+                if (adminSettingsRow) adminSettingsRow.style.display = 'none';
             }
             
             // Load scholarship selector
@@ -476,6 +478,14 @@
                     newWindow.location.href = langfuseUrl;
                 });
         });
+
+        // Handle Admin Config button (admin only - in header)
+        const adminConfigButton = document.getElementById('adminConfigButton');
+        if (adminConfigButton) {
+            adminConfigButton.addEventListener('click', () => {
+                window.open('/admin/config', 'AdminConfig', 'width=1400,height=900,scrollbars=yes,resizable=yes');
+            });
+        }
         
         // Handle logout button (profile card only)
         const profileLogoutBtn = document.getElementById('profileLogoutBtn');

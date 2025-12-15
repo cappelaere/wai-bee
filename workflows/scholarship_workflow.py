@@ -400,9 +400,24 @@ class ScholarshipProcessingWorkflow(Workflow):
         applications_folder = self.scholarship_folder / "Applications"
         
         if applications_folder.exists() and applications_folder.is_dir():
-            wai_numbers = [d.name for d in applications_folder.iterdir() if d.is_dir() and not d.name.startswith('.')]
+            wai_numbers = [
+                d.name
+                for d in applications_folder.iterdir()
+                if d.is_dir() and not d.name.startswith('.')
+            ]
             self.logger.info(f"Found {len(wai_numbers)} applicants in {applications_folder}")
-            return sorted(wai_numbers)
+
+            # Sort WAI numbers numerically when possible so that, for example,
+            # 58320 and 70015 come before 100439 and 101866, instead of using
+            # plain string (lexicographic) ordering.
+            def sort_key(name: str):
+                try:
+                    return int(name)
+                except ValueError:
+                    # Fall back to string ordering for any non-numeric names
+                    return name
+
+            return sorted(wai_numbers, key=sort_key)
         
         self.logger.warning(f"No Applications folder found in {self.scholarship_folder}")
         return []
