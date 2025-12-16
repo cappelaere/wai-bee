@@ -8,6 +8,7 @@ License: MIT
 
 import logging
 from fastapi import APIRouter, HTTPException, Query
+from fastapi_cache.decorator import cache
 from ..models import (
     ApplicationAnalysisResponse,
     AcademicAnalysisResponse,
@@ -21,6 +22,7 @@ logger = logging.getLogger(__name__)
 
 
 @router.get("/application", response_model=ApplicationAnalysisResponse, operation_id="get_application")
+@cache(expire=3600)  # Cache for 60 minutes
 async def get_application_analysis(
     scholarship: str = Query(..., description="Scholarship name (e.g., 'Delaney_Wings' or 'Evans_Wings')"),
     wai_number: str = Query(..., description="WAI application number")

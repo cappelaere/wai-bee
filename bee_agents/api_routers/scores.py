@@ -8,6 +8,7 @@ License: MIT
 
 import logging
 from fastapi import APIRouter, HTTPException, Query
+from fastapi_cache.decorator import cache
 from ..models import ScoreResponse, TopScoresResponse, StatisticsResponse
 from ..api_utils import get_data_service
 
@@ -51,6 +52,7 @@ async def get_score(
 
 
 @router.get("/top_scores", response_model=TopScoresResponse, operation_id="get_top_scores")
+@cache(expire=3600)  # Cache for 60 minutes
 async def get_top_scores(
     scholarship: str = Query(..., description="Scholarship name (e.g., 'Delaney_Wings' or 'Evans_Wings')"),
     limit: int = Query(10, ge=1, le=100, description="Number of top scores to return")
@@ -82,6 +84,7 @@ async def get_top_scores(
 
 
 @router.get("/statistics", response_model=StatisticsResponse, operation_id="get_statistics")
+@cache(expire=3600)  # Cache for 60 minutes
 async def get_statistics(
     scholarship: str = Query(..., description="Scholarship name (e.g., 'Delaney_Wings' or 'Evans_Wings')")
 ):

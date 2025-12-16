@@ -42,14 +42,16 @@ class TestUserConfiguration:
         
         assert "users" in config
         assert "scholarships" in config
-        assert "admin" in config["users"]
+        assert "pat" in config["users"]  # Admin user is 'pat'
+        assert "delaney_manager" in config["users"]
+        assert "evans_manager" in config["users"]
         assert "Delaney_Wings" in config["scholarships"]
         assert "Evans_Wings" in config["scholarships"]
     
     def test_get_user_info(self):
         """Test retrieving user information."""
-        # Test existing user
-        admin_info = get_user_info("admin")
+        # Test existing user (pat is the admin)
+        admin_info = get_user_info("pat")
         assert admin_info is not None
         assert admin_info["role"] == "admin"
         assert "*" in admin_info["scholarships"]
@@ -60,8 +62,8 @@ class TestUserConfiguration:
     
     def test_get_user_scholarships(self):
         """Test retrieving user scholarship assignments."""
-        # Test admin (should have all access)
-        admin_scholarships = get_user_scholarships("admin")
+        # Test admin (pat should have all access)
+        admin_scholarships = get_user_scholarships("pat")
         assert "*" in admin_scholarships
         
         # Test delaney manager (should have only Delaney_Wings)
@@ -74,14 +76,14 @@ class TestUserConfiguration:
     
     def test_get_user_role(self):
         """Test retrieving user roles."""
-        assert get_user_role("admin") == "admin"
+        assert get_user_role("pat") == "admin"
         assert get_user_role("delaney_manager") == "manager"
         assert get_user_role("evans_manager") == "manager"
         assert get_user_role("user") == "reviewer"
     
     def test_get_user_permissions(self):
         """Test retrieving user permissions."""
-        admin_perms = get_user_permissions("admin")
+        admin_perms = get_user_permissions("pat")
         assert "read" in admin_perms
         assert "write" in admin_perms
         assert "admin" in admin_perms
@@ -102,20 +104,22 @@ class TestAuthentication:
     
     def test_verify_credentials(self):
         """Test credential verification."""
-        # Test valid credentials
-        assert verify_credentials("admin", "1admin2") == True
-        assert verify_credentials("delaney_manager", "delaney2025") == True
-        assert verify_credentials("evans_manager", "evans2025") == True
+        # Note: Actual passwords come from environment variables
+        # These tests will pass if environment variables are set correctly
+        # Test valid credentials (using pat as admin)
+        assert verify_credentials("pat", os.getenv("ADMIN_PASSWORD", "test")) == True
+        assert verify_credentials("delaney_manager", os.getenv("DELANEY_PASSWORD", "test")) == True
+        assert verify_credentials("evans_manager", os.getenv("EVANS_PASSWORD", "test")) == True
         
         # Test invalid credentials
-        assert verify_credentials("admin", "wrong_password") == False
+        assert verify_credentials("pat", "wrong_password") == False
         assert verify_credentials("nonexistent", "password") == False
     
     def test_has_scholarship_access(self):
         """Test scholarship access checking."""
-        # Admin should have access to all scholarships
-        assert has_scholarship_access("admin", "Delaney_Wings") == True
-        assert has_scholarship_access("admin", "Evans_Wings") == True
+        # Admin (pat) should have access to all scholarships
+        assert has_scholarship_access("pat", "Delaney_Wings") == True
+        assert has_scholarship_access("pat", "Evans_Wings") == True
         
         # Delaney manager should only have access to Delaney_Wings
         assert has_scholarship_access("delaney_manager", "Delaney_Wings") == True
@@ -127,7 +131,7 @@ class TestAuthentication:
     
     def test_is_user_enabled(self):
         """Test user enabled status."""
-        assert is_user_enabled("admin") == True
+        assert is_user_enabled("pat") == True
         assert is_user_enabled("delaney_manager") == True
         assert is_user_enabled("nonexistent") == False
     
@@ -160,7 +164,7 @@ class TestMiddleware:
     
     def setup_method(self):
         """Set up test data for each test method."""
-        self.admin_token = create_token_with_context("admin")
+        self.admin_token = create_token_with_context("pat")
         self.delaney_token = create_token_with_context("delaney_manager")
         self.evans_token = create_token_with_context("evans_manager")
         
@@ -261,7 +265,7 @@ class TestDataIsolation:
     
     def test_admin_universal_access(self):
         """Test that admin can access all scholarships."""
-        admin_token = create_token_with_context("admin")
+        admin_token = create_token_with_context("pat")  # pat is the admin user
         admin_middleware = ScholarshipAccessMiddleware(admin_token)
         
         # Admin should access all scholarships

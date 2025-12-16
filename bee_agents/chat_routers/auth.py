@@ -8,8 +8,10 @@ License: MIT
 
 import logging
 from pathlib import Path
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import HTMLResponse
+from slowapi import Limiter
+from slowapi.util import get_remote_address
 from ..auth import (
     LoginRequest,
     LoginResponse,
@@ -21,10 +23,17 @@ from ..auth import (
 router = APIRouter(tags=["Authentication"])
 logger = logging.getLogger(__name__)
 
+# Rate limiter for auth endpoints
+limiter = Limiter(key_func=get_remote_address)
+
 
 @router.get("/login", response_class=HTMLResponse, operation_id="get_login_page")
-async def get_login_page():
-    """Serve the login page."""
+@limiter.limit("60/minute")
+async def get_login_page(request: Request):
+    """Serve the login page.
+    
+    Rate limit: 60 requests per minute per IP address.
+    """
     template_path = Path(__file__).parent.parent / "templates" / "login.html"
     
     try:
@@ -37,8 +46,12 @@ async def get_login_page():
 
 
 @router.post("/login", response_model=LoginResponse, operation_id="login")
-async def login(request: LoginRequest):
-    """Handle login requests with scholarship context."""
+@limiter.limit("10/minute")
+async def login(http_request: Request, request: LoginRequest):
+    """Handle login requests with scholarship context.
+    
+    Rate limit: 10 login attempts per minute per IP address to prevent brute force attacks.
+    """
     if not verify_credentials(request.username, request.password):
         raise HTTPException(status_code=401, detail="Invalid username or password")
     
@@ -56,8 +69,12 @@ async def login(request: LoginRequest):
 
 
 @router.post("/logout", operation_id="logout")
-async def logout(token: str):
-    """Handle logout requests."""
+@limiter.limit("30/minute")
+async def logout(request: Request, token: str):
+    """Handle logout requests.
+    
+    Rate limit: 30 requests per minute per IP address.
+    """
     success = revoke_token(token)
     if success:
         return {"message": "Logged out successfully"}

@@ -9,16 +9,25 @@ License: MIT
 import logging
 from pathlib import Path
 from typing import Optional
-from fastapi import APIRouter, WebSocket, WebSocketDisconnect, Cookie
+from fastapi import APIRouter, WebSocket, WebSocketDisconnect, Cookie, Request
 from fastapi.responses import HTMLResponse, FileResponse, Response
+from slowapi import Limiter
+from slowapi.util import get_remote_address
 
 router = APIRouter(tags=["Chat"])
 logger = logging.getLogger(__name__)
 
+# Rate limiter for chat endpoints
+limiter = Limiter(key_func=get_remote_address)
+
 
 @router.get("/", response_class=HTMLResponse, operation_id="get_chat_page")
-async def get_chat_page():
-    """Serve the main chat interface."""
+@limiter.limit("60/minute")
+async def get_chat_page(request: Request):
+    """Serve the main chat interface.
+    
+    Rate limit: 60 requests per minute per IP address.
+    """
     template_path = Path(__file__).parent.parent / "templates" / "chat.html"
     
     try:
@@ -34,8 +43,12 @@ async def get_chat_page():
 
 
 @router.get("/about", response_class=HTMLResponse, operation_id="get_about_page")
-async def get_about_page():
-    """Serve the about page."""
+@limiter.limit("60/minute")
+async def get_about_page(request: Request):
+    """Serve the about page.
+    
+    Rate limit: 60 requests per minute per IP address.
+    """
     template_path = Path(__file__).parent.parent / "templates" / "about.html"
     
     try:

@@ -29,9 +29,17 @@ from typing import Optional, Union, Dict, Any
 from contextlib import asynccontextmanager
 import argparse
 
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException, Cookie, Depends
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException, Cookie, Depends, Request
 from fastapi.responses import HTMLResponse, FileResponse, Response, JSONResponse
 from fastapi.staticfiles import StaticFiles
+from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi.util import get_remote_address
+from slowapi.errors import RateLimitExceeded
+
+from fastapi_cache import FastAPICache
+from fastapi_cache.backends.redis import RedisBackend
+from fastapi_cache.decorator import cache
+from redis import asyncio as aioredis
 
 
 # Setup Bee internal logging
@@ -86,6 +94,9 @@ cache: SlidingCache[int] = SlidingCache(
 
 # Configure logging
 logger = setup_logging('chat')
+
+# Configure rate limiting
+limiter = Limiter(key_func=get_remote_address, default_limits=["100/minute"])
 
 # Global agent handler (either multi-agent or single-agent)
 agent_handler: Optional[Union[MultiAgentOrchestrator, SingleAgentHandler]] = None
@@ -188,6 +199,16 @@ async def lifespan(app: FastAPI):
     # Initialize observability BEFORE any BeeAI code runs
     setup_observability()
     await initialize_agents()
+    
+    # Initialize Redis cache
+    redis_url = os.environ.get("REDIS_URL", "redis://localhost:6379")
+    try:
+        redis = aioredis.from_url(redis_url, encoding="utf8", decode_responses=True)
+        FastAPICache.init(RedisBackend(redis), prefix="fastapi-cache")
+        logger.info(f"Redis cache initialized at {redis_url}")
+    except Exception as e:
+        logger.warning(f"Failed to initialize Redis cache: {e}. Caching will be disabled.")
+    
     yield
     # Shutdown (if needed in the future)
 
@@ -198,6 +219,11 @@ app = FastAPI(
     description="Interactive chat interface for scholarship analysis with multi-agent orchestration",
     version="2.0.0",
     lifespan=lifespan
+)
+
+# Add rate limiting
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 )
 
 

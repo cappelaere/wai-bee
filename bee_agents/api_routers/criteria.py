@@ -10,6 +10,7 @@ import logging
 from pathlib import Path
 from fastapi import APIRouter, HTTPException, Query, Request
 from fastapi.responses import FileResponse
+from fastapi_cache.decorator import cache
 from ..api_utils import get_data_service
 
 router = APIRouter(tags=["Criteria"])
@@ -17,6 +18,7 @@ logger = logging.getLogger(__name__)
 
 
 @router.get("/criteria", operation_id="list_criteria")
+@cache(expire=3600)  # Cache for 60 minutes
 async def list_criteria(
     request: Request,
     scholarship: str = Query(..., description="Scholarship name (e.g., 'Delaney_Wings' or 'Evans_Wings')")

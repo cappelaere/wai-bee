@@ -1,4 +1,23 @@
 services:
+  # Redis - Cache Server
+  redis:
+    image: redis:7-alpine
+    container_name: wai-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+      start_period: 10s
+    networks:
+      - wai-network
+    command: redis-server --appendonly yes
+
   # Ollama - Local LLM Server
   ollama:
     image: ollama/ollama:latest
@@ -43,6 +62,7 @@ services:
       - MAX_RETRIES=3
       - LLM_TEMPERATURE=0.1
       - LLM_MAX_TOKENS=4000
+      - REDIS_URL=redis://redis:6379
     env_file:
       - .env
     volumes:
@@ -60,6 +80,8 @@ services:
       start_period: 40s
     networks:
       - wai-network
+    depends_on:
+      - redis
 
   # Chat Frontend
   # models: 
@@ -82,6 +104,7 @@ services:
       - OLLAMA_API_BASE=http://host.docker.internal:11434
       - LANGFUSE_ENABLED=true
       - MARKDOWN_PARSER=true
+      - REDIS_URL=redis://redis:6379
     env_file:
       - .env
     volumes:
@@ -100,6 +123,7 @@ services:
     networks:
       - wai-network
     depends_on:
+      - redis
       - api
 
 networks:
@@ -110,5 +134,6 @@ volumes:
   outputs:
   logs:
   ollama-data:
+  redis-data:
 
 # Made with Bob

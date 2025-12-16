@@ -11,6 +11,7 @@ from pathlib import Path
 from typing import Optional
 from fastapi import APIRouter, HTTPException, Cookie
 from fastapi.responses import HTMLResponse
+from fastapi_cache.decorator import cache
 from ..auth import verify_token_with_context, active_tokens
 from ..middleware import ScholarshipAccessMiddleware
 
@@ -19,6 +20,7 @@ logger = logging.getLogger(__name__)
 
 
 @router.get("/select-scholarship", response_class=HTMLResponse, operation_id="get_select_page")
+@cache(expire=3600)  # Cache for 60 minutes
 async def get_scholarship_selection_page():
     """Serve the scholarship selection page."""
     template_path = Path(__file__).parent.parent / "templates" / "select_scholarship.html"

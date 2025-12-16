@@ -19,8 +19,16 @@ Example:
 """
 
 import argparse
+import logging
 import uvicorn
 from .api import initialize_services, app
+
+# Configure logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
+logger = logging.getLogger(__name__)
 
 
 def main():
@@ -73,6 +81,14 @@ Examples:
     
     args = parser.parse_args()
     
+    logger.info("Starting API server", extra={
+        "scholarship": args.scholarship,
+        "output_dir": args.output_dir,
+        "host": args.host,
+        "port": args.port
+    })
+    
+    # Print startup info for user
     print(f"Initializing API for scholarship: {args.scholarship}")
     print(f"Output directory: {args.output_dir}")
     print(f"Server will run on: http://{args.host}:{args.port}")
@@ -82,9 +98,11 @@ Examples:
     # Initialize the data services
     try:
         initialize_services(args.output_dir)
+        logger.info("Data services initialized successfully")
         print(f"✓ Data services initialized successfully")
         print()
     except Exception as e:
+        logger.error(f"Failed to initialize data services: {e}", exc_info=True)
         print(f"✗ Failed to initialize data services: {e}")
         return 1
     

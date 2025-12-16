@@ -30,6 +30,11 @@ from fastapi.middleware.cors import CORSMiddleware
 import argparse
 import time
 
+from fastapi_cache import FastAPICache
+from fastapi_cache.backends.redis import RedisBackend
+from fastapi_cache.decorator import cache
+from redis import asyncio as aioredis
+
 from .data_service import DataService
 from .models import (
     ScoreResponse,
@@ -99,6 +104,16 @@ async def lifespan(app: FastAPI):
     """Lifespan context manager for startup and shutdown events."""
     # Startup
     initialize_services()
+    
+    # Initialize Redis cache
+    redis_url = os.environ.get("REDIS_URL", "redis://localhost:6379")
+    try:
+        redis = aioredis.from_url(redis_url, encoding="utf8", decode_responses=True)
+        FastAPICache.init(RedisBackend(redis), prefix="fastapi-cache")
+        logger.info(f"Redis cache initialized at {redis_url}")
+    except Exception as e:
+        logger.warning(f"Failed to initialize Redis cache: {e}. Caching will be disabled.")
+    
     yield
     # Shutdown (if needed in the future)
 

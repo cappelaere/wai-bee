@@ -18,6 +18,7 @@ Example:
 
 import asyncio
 import json
+import logging
 import os
 import sys
 import traceback
@@ -35,6 +36,13 @@ from beeai_framework.tools.openapi import OpenAPITool
 
 # Load environment variables from .env file
 load_dotenv()
+
+# Configure logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
+logger = logging.getLogger(__name__)
 
 
 class ScholarshipAgent:
@@ -57,10 +65,10 @@ class ScholarshipAgent:
         
     async def initialize(self) -> None:
         """Initialize the agent by loading schema and creating tools."""
-        print(f"🔧 Initializing Scholarship Agent...")
-        print(f"   Model: {self.model_name}")
-        print(f"   Schema: {self.schema_path}")
-        print()
+        logger.info("Initializing Scholarship Agent", extra={
+            "model": self.model_name,
+            "schema_path": self.schema_path
+        })
         
         # Load OpenAPI schema
         try:
@@ -68,31 +76,32 @@ class ScholarshipAgent:
                 content = await file.read()
                 open_api_schema = json.loads(content)
         except FileNotFoundError:
-            print(f"❌ Error: OpenAPI schema not found at {self.schema_path}")
-            print("   Run: python -m bee_agents.generate_openapi")
-            sys.exit(1)
+            logger.error(f"OpenAPI schema not found: {self.schema_path}")
+            raise FileNotFoundError(
+                f"OpenAPI schema not found at {self.schema_path}. "
+                "Run: python -m bee_agents.generate_openapi"
+            )
         except json.JSONDecodeError as e:
-            print(f"❌ Error: Invalid JSON in schema file: {e}")
-            sys.exit(1)
+            logger.error(f"Invalid JSON in schema file: {e}")
+            raise ValueError(f"Invalid JSON in schema file: {e}")
         
         # Initialize LLM
         try:
             llm = ChatModel.from_name(self.model_name)
         except Exception as e:
-            print(f"❌ Error: Failed to initialize model '{self.model_name}': {e}")
-            sys.exit(1)
+            logger.error(f"Failed to initialize model '{self.model_name}': {e}")
+            raise RuntimeError(f"Failed to initialize model '{self.model_name}': {e}")
         
         # Create tools from OpenAPI schema
         self.tools = OpenAPITool.from_schema(open_api_schema)
-        print(f"✓ Loaded {len(self.tools)} tools from OpenAPI schema:")
-        for tool in self.tools:
-            print(f"   - {tool.name}")
-        print()
+        logger.info(f"Loaded {len(self.tools)} tools from OpenAPI schema", extra={
+            "tool_count": len(self.tools),
+            "tools": [tool.name for tool in self.tools]
+        })
         
         # Create agent
         self.agent = RequirementAgent(llm=llm, tools=self.tools)
-        print("✓ Agent initialized successfully!")
-        print()
+        logger.info("Agent initialized successfully")
     
     async def query(self, prompt: str) -> str:
         """Query the agent with a prompt.
@@ -111,6 +120,9 @@ class ScholarshipAgent:
     
     async def interactive_loop(self) -> None:
         """Run an interactive loop for continuous conversation."""
+        logger.info("Starting interactive mode")
+        
+        # Print welcome message (keep for user interaction)
         print("=" * 80)
         print("🎓 Scholarship Agent - Interactive Mode")
         print("=" * 80)
@@ -141,6 +153,7 @@ class ScholarshipAgent:
                 
                 # Handle commands
                 if user_input.lower() in ['quit', 'exit', 'q']:
+                    logger.info("User exited interactive mode")
                     print("\n👋 Goodbye!")
                     break
                 
@@ -168,9 +181,11 @@ class ScholarshipAgent:
                 print()
                 
             except KeyboardInterrupt:
+                logger.info("Interactive mode interrupted by user")
                 print("\n\n👋 Goodbye!")
                 break
             except Exception as e:
+                logger.exception("Error during query processing")
                 print(f"\n❌ Error: {e}")
                 print()
     
@@ -213,12 +228,12 @@ async def main() -> None:
         await agent.initialize()
         await agent.interactive_loop()
     except FrameworkError as e:
+        logger.error(f"Framework error: {e}", exc_info=True)
         print(f"\n❌ Framework Error: {e}")
-        traceback.print_exc()
         sys.exit(1)
     except Exception as e:
+        logger.exception("Unexpected error in main")
         print(f"\n❌ Unexpected Error: {e}")
-        traceback.print_exc()
         sys.exit(1)
 
 
@@ -226,6 +241,7 @@ if __name__ == "__main__":
     try:
         asyncio.run(main())
     except KeyboardInterrupt:
+        logger.info("Application interrupted by user")
         print("\n\n👋 Goodbye!")
         sys.exit(0)
 
