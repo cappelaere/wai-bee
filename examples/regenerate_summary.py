@@ -35,7 +35,7 @@ def main():
     # Initialize summary agent
     summary_agent = SummaryAgent(
         outputs_dir=config.OUTPUTS_DIR,
-        scholarship_folder=config.DELANEY_WINGS_FOLDER
+        scholarship_folder=config.get_scholarship_folder("Delaney_Wings")
     )
     
     # Get list of processed applicants from unified output structure

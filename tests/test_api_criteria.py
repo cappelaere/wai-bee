@@ -11,9 +11,9 @@ License: MIT
 import pytest
 
 
-def test_list_criteria(test_client):
+def test_list_criteria(test_client, scholarship_name):
     """Test listing all available criteria."""
-    response = test_client.get("/criteria")
+    response = test_client.get(f"/criteria?scholarship={scholarship_name}")
     
     assert response.status_code == 200
     data = response.json()
@@ -22,22 +22,20 @@ def test_list_criteria(test_client):
     assert "criteria_count" in data
     assert "criteria" in data
     
-    assert data["scholarship"] == "Delaney_Wings"
+    assert data["scholarship"] == scholarship_name
     assert isinstance(data["criteria"], list)
     assert data["criteria_count"] > 0
     
     # Check that each criteria has required fields
     for criteria in data["criteria"]:
-        assert "type" in criteria
         assert "name" in criteria
-        assert "description" in criteria
         assert "filename" in criteria
         assert "url" in criteria
 
 
-def test_get_application_criteria(test_client):
+def test_get_application_criteria(test_client, scholarship_name):
     """Test getting application criteria."""
-    response = test_client.get("/criteria/application")
+    response = test_client.get(f"/criteria/application?scholarship={scholarship_name}")
     
     assert response.status_code == 200
     data = response.json()
@@ -54,9 +52,9 @@ def test_get_application_criteria(test_client):
     assert data["line_count"] > 0
 
 
-def test_get_academic_criteria(test_client):
+def test_get_academic_criteria(test_client, scholarship_name):
     """Test getting academic criteria."""
-    response = test_client.get("/criteria/academic")
+    response = test_client.get(f"/criteria/academic?scholarship={scholarship_name}")
     
     assert response.status_code == 200
     data = response.json()
@@ -66,9 +64,9 @@ def test_get_academic_criteria(test_client):
     assert "Academic" in data["content"]
 
 
-def test_get_essay_criteria(test_client):
+def test_get_essay_criteria(test_client, scholarship_name):
     """Test getting essay criteria."""
-    response = test_client.get("/criteria/essay")
+    response = test_client.get(f"/criteria/essay?scholarship={scholarship_name}")
     
     assert response.status_code == 200
     data = response.json()
@@ -77,9 +75,9 @@ def test_get_essay_criteria(test_client):
     assert data["filename"] == "essay_criteria.txt"
 
 
-def test_get_recommendation_criteria(test_client):
+def test_get_recommendation_criteria(test_client, scholarship_name):
     """Test getting recommendation criteria."""
-    response = test_client.get("/criteria/recommendation")
+    response = test_client.get(f"/criteria/recommendation?scholarship={scholarship_name}")
     
     assert response.status_code == 200
     data = response.json()
@@ -88,9 +86,9 @@ def test_get_recommendation_criteria(test_client):
     assert data["filename"] == "recommendation_criteria.txt"
 
 
-def test_get_invalid_criteria_type(test_client):
+def test_get_invalid_criteria_type(test_client, scholarship_name):
     """Test getting criteria with invalid type."""
-    response = test_client.get("/criteria/invalid_type")
+    response = test_client.get(f"/criteria/invalid_type?scholarship={scholarship_name}")
     
     assert response.status_code == 400
     data = response.json()
@@ -99,9 +97,9 @@ def test_get_invalid_criteria_type(test_client):
     assert "Invalid criteria type" in data["detail"]
 
 
-def test_criteria_content_structure(test_client):
+def test_criteria_content_structure(test_client, scholarship_name):
     """Test that criteria content has expected structure."""
-    response = test_client.get("/criteria/application")
+    response = test_client.get(f"/criteria/application?scholarship={scholarship_name}")
     
     assert response.status_code == 200
     data = response.json()
@@ -116,19 +114,20 @@ def test_criteria_content_structure(test_client):
     assert "SCORING" in content.upper() or "SCORE" in content.upper()
 
 
-def test_all_criteria_types_available(test_client):
+def test_all_criteria_types_available(test_client, scholarship_name):
     """Test that all expected criteria types are available."""
-    response = test_client.get("/criteria")
+    response = test_client.get(f"/criteria?scholarship={scholarship_name}")
     
     assert response.status_code == 200
     data = response.json()
     
-    criteria_types = [c["type"] for c in data["criteria"]]
+    # Extract criteria names (which contain the type)
+    criteria_names = [c["name"] for c in data["criteria"]]
     
-    # Check for expected criteria types
+    # Check for expected criteria types in names
     expected_types = ["application", "academic", "essay", "recommendation"]
     for expected_type in expected_types:
-        assert expected_type in criteria_types, f"Missing {expected_type} criteria"
+        assert any(expected_type in name for name in criteria_names), f"Missing {expected_type} criteria"
 
 
 # Made with Bob

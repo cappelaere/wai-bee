@@ -43,7 +43,7 @@ def main():
     agent = ApplicationAgent()
     
     # Process applications using config values
-    scholarship_folder = str(config.DELANEY_WINGS_FOLDER / "Applications")
+    scholarship_folder = str(config.get_scholarship_folder("Delaney_Wings") / "Applications")
     
     print(f"\nProcessing applications from: {scholarship_folder}")
     print(f"Using model: {config.PRIMARY_MODEL}")

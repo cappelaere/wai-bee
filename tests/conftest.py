@@ -13,6 +13,10 @@ from fastapi.testclient import TestClient
 from bee_agents.api import app, initialize_service
 
 
+# Test scholarship name
+TEST_SCHOLARSHIP = "Delaney_Wings"
+
+
 @pytest.fixture(scope="module")
 def test_client():
     """Create a test client for the API.
@@ -24,7 +28,7 @@ def test_client():
         TestClient: FastAPI test client
     """
     # Initialize the service with Delaney_Wings scholarship
-    initialize_service("Delaney_Wings", "outputs")
+    initialize_service(TEST_SCHOLARSHIP, "outputs")
     
     # Create test client
     client = TestClient(app)
@@ -36,17 +40,28 @@ def test_client():
 
 
 @pytest.fixture(scope="module")
-def sample_wai_number(test_client):
+def scholarship_name():
+    """Provide the test scholarship name.
+    
+    Returns:
+        str: The scholarship name used for testing
+    """
+    return TEST_SCHOLARSHIP
+
+
+@pytest.fixture(scope="module")
+def sample_wai_number(test_client, scholarship_name):
     """Get a sample WAI number for testing.
     
     Args:
         test_client: FastAPI test client
+        scholarship_name: Name of the test scholarship
         
     Returns:
         str: A valid WAI number from the test data
     """
     # Get top scores to find a valid WAI number
-    response = test_client.get("/top_scores?limit=1")
+    response = test_client.get(f"/top_scores?scholarship={scholarship_name}&limit=1")
     if response.status_code == 200:
         data = response.json()
         if data.get("top_scores"):

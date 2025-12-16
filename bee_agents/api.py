@@ -43,36 +43,55 @@ from .models import (
 )
 from .logging_config import setup_logging
 
+# Import modular routers
+from .api_routers import (
+    health_router,
+    scores_router,
+    analysis_router,
+    criteria_router,
+    admin_router
+)
+
 # Configure logging
 logger = setup_logging('api')
 
-# Global data services dictionary (one per scholarship)
-data_services: Dict[str, DataService] = {}
-AVAILABLE_SCHOLARSHIPS = ["Delaney_Wings", "Evans_Wings"]
+# Import shared utilities to avoid circular imports
+from .api_utils import data_services, get_data_service, get_scholarship_config_path, load_scholarship_config
 
 
-def get_scholarship_config_path(scholarship_name: str) -> Path:
-    """Get path to canonical config.yml for a scholarship."""
-    return Path("data") / scholarship_name / "config.yml"
-
-
-def load_scholarship_config(scholarship_name: str) -> Dict[str, Any]:
-    """Load canonical scholarship config."""
-    import yaml  # Local import to avoid global dependency at import time
-
-    config_path = get_scholarship_config_path(scholarship_name)
+def load_available_scholarships() -> List[str]:
+    """Load available scholarships from config/users.json.
+    
+    Returns:
+        List of enabled scholarship identifiers
+    """
+    config_path = Path("config/users.json")
     if not config_path.exists():
-        raise HTTPException(
-            status_code=404,
-            detail=f"Config file not found for scholarship {scholarship_name}: {config_path}",
-        )
+        logger.warning(f"User config file not found: {config_path}, using defaults")
+        return ["Delaney_Wings", "Evans_Wings"]
+    
     try:
-        with open(config_path, "r", encoding="utf-8") as f:
-            config = yaml.safe_load(f) or {}
-        return config
+        with open(config_path, 'r') as f:
+            config = json.load(f)
+        
+        scholarships = config.get("scholarships", {})
+        # Return only enabled scholarships
+        available = [
+            key for key, value in scholarships.items()
+            if value.get("enabled", True)
+        ]
+        
+        logger.info(f"Loaded {len(available)} available scholarships from config")
+        return available
     except Exception as e:
-        logger.error(f"Error loading scholarship config {config_path}: {e}")
-        raise HTTPException(status_code=500, detail="Failed to load scholarship config")
+        logger.error(f"Error loading scholarships from config: {e}")
+        return ["Delaney_Wings", "Evans_Wings"]
+
+
+# Load available scholarships dynamically from config
+AVAILABLE_SCHOLARSHIPS = load_available_scholarships()
+
+# Note: get_scholarship_config_path and load_scholarship_config are now imported from api_utils
 
 
 @asynccontextmanager
@@ -111,6 +130,16 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+# Include modular routers
+app.include_router(health_router)
+app.include_router(scores_router)
+app.include_router(analysis_router)
+app.include_router(criteria_router)
+app.include_router(admin_router)
+
+logger.info("Modular API routers integrated successfully")
 
 
 # Middleware for request logging
@@ -167,24 +196,17 @@ def initialize_services(base_output_dir: str = "outputs"):
         raise ValueError("No data services could be initialized")
 
 
-def get_data_service(scholarship: str) -> DataService:
-    """Get the data service for a specific scholarship.
+# Backward compatibility: alias for tests
+def initialize_service(scholarship_name: str, base_output_dir: str = "outputs"):
+    """Initialize data service for a single scholarship (backward compatibility).
     
     Args:
-        scholarship: Name of the scholarship
-        
-    Returns:
-        DataService instance for the scholarship
-        
-    Raises:
-        HTTPException: If scholarship not found or not available
+        scholarship_name: Name of the scholarship
+        base_output_dir: Base directory containing output files
     """
-    if scholarship not in data_services:
-        raise HTTPException(
-            status_code=404,
-            detail=f"Scholarship '{scholarship}' not found. Available: {', '.join(data_services.keys())}"
-        )
-    return data_services[scholarship]
+    global data_services
+    data_services[scholarship_name] = DataService(scholarship_name, base_output_dir)
+    logger.info(f"API initialized for scholarship: {scholarship_name}")
 
 
 
@@ -197,20 +219,7 @@ async def favicon():
     return JSONResponse(status_code=204, content={})
 
 
-@app.get("/", tags=["Health"])
-async def root():
-    """Root endpoint - API health check."""
-    if not data_services:
-        return JSONResponse(
-            status_code=503,
-            content={"error": "Service not initialized", "detail": "Data services not configured"}
-        )
-    return {
-        "message": "Scholarship Analysis API",
-        "version": "2.0.0",
-        "status": "operational",
-        "available_scholarships": list(data_services.keys())
-    }
+# REMOVED: Duplicate endpoint - now handled by bee_agents/api_routers/health.py
 
 
 @app.get("/scholarship", tags=["Scholarship"])
@@ -253,371 +262,22 @@ def require_admin(request: Request) -> None:
     return
 
 
-@app.get("/admin/{scholarship}/weights", tags=["Admin"])
-async def get_scholarship_weights(
-    scholarship: str,
-    _: None = Depends(require_admin),
-):
-    """Get current scoring weights for a scholarship from canonical config."""
-    config = load_scholarship_config(scholarship)
-    agents_cfg = config.get("agents", {})
-    scoring_cfg = config.get("scoring", {})
-    scoring_agents = scoring_cfg.get("scoring_agents", [])
-
-    weights = {}
-    total = 0.0
-    for name, agent in agents_cfg.items():
-        weight = agent.get("weight")
-        if weight is not None:
-            weights[name] = {
-                "weight": weight,
-                "description": agent.get("description", ""),
-                "enabled": agent.get("enabled", True),
-                "required": agent.get("required", False),
-            }
-            total += weight
-
-    return {
-        "scholarship": scholarship,
-        "weights": weights,
-        "total_weight": round(total, 4),
-        "scoring_agents": scoring_agents,
-    }
+# REMOVED: Duplicate admin endpoints - now handled by bee_agents/api_routers/admin.py
+# The following endpoints are defined in the admin router:
+# - GET /admin/{scholarship}/weights
+# - PUT /admin/{scholarship}/weights
+# - GET /admin/{scholarship}/criteria/{agent_name}
+# - PUT /admin/{scholarship}/criteria/{agent_name}
+# - POST /admin/{scholarship}/criteria/{agent_name}/regenerate
 
 
-@app.put("/admin/{scholarship}/weights", tags=["Admin"])
-async def update_scholarship_weights(
-    scholarship: str,
-    payload: Dict[str, Any],
-    _: None = Depends(require_admin),
-):
-    """Update scoring weights in canonical config and regenerate artifacts."""
-    config = load_scholarship_config(scholarship)
-    agents_cfg = config.get("agents", {})
-
-    new_weights = payload.get("weights", {})
-    if not isinstance(new_weights, dict):
-        raise HTTPException(status_code=400, detail="weights must be an object")
-
-    total = 0.0
-    for name, w in new_weights.items():
-        if name not in agents_cfg:
-            raise HTTPException(status_code=400, detail=f"Unknown agent: {name}")
-        try:
-            weight_val = float(w.get("weight"))
-        except Exception:
-            raise HTTPException(status_code=400, detail=f"Invalid weight for agent {name}")
-        agents_cfg[name]["weight"] = weight_val
-        total += weight_val
-
-    if abs(total - 1.0) > 0.001:
-        raise HTTPException(
-            status_code=400,
-            detail=f"Weights must sum to 1.0, got {total}",
-        )
-
-    config["agents"] = agents_cfg
-
-    # Persist back to config.yml with simple backup
-    config_path = get_scholarship_config_path(scholarship)
-    backup_path = config_path.with_suffix(".backup")
-    try:
-        import shutil
-        import yaml
-
-        if config_path.exists():
-            shutil.copy2(config_path, backup_path)
-        with open(config_path, "w", encoding="utf-8") as f:
-            yaml.safe_dump(config, f, sort_keys=False, allow_unicode=True)
-    except Exception as e:
-        logger.error(f"Failed to write updated config for {scholarship}: {e}")
-        raise HTTPException(status_code=500, detail="Failed to save updated weights")
-
-    # Regenerate artifacts on disk
-    try:
-        from scripts.generate_scholarship_artifacts import main as generate_main
-
-        root = Path(__file__).resolve().parents[1]
-        generate_main([str(root / "scripts/generate_scholarship_artifacts.py"), scholarship])
-    except Exception as e:
-        logger.error(f"Failed to regenerate artifacts for {scholarship}: {e}")
-        raise HTTPException(status_code=500, detail="Weights saved but artifact regeneration failed")
-
-    return {"status": "ok", "total_weight": round(total, 4)}
+# REMOVED: Duplicate endpoints - now handled by bee_agents/api_routers/criteria.py
+# The following endpoints are defined in the criteria router:
+# - GET /criteria (list_criteria)
+# - GET /criteria/{scholarship}/{filename} (get_criteria_file)
 
 
-@app.get("/admin/{scholarship}/criteria/{agent_name}", tags=["Admin"])
-async def get_agent_criteria(
-    scholarship: str,
-    agent_name: str,
-    _: None = Depends(require_admin),
-):
-    """Get current criteria text for a specific agent from canonical config."""
-    config = load_scholarship_config(scholarship)
-    agents_cfg = config.get("agents", {})
-    criteria_text = config.get("criteria_text", {})
-
-    if agent_name not in agents_cfg:
-        raise HTTPException(status_code=404, detail=f"Unknown agent: {agent_name}")
-
-    crit_ref = agents_cfg[agent_name].get("criteria_ref")
-    crit_value = criteria_text.get(crit_ref) if crit_ref else None
-
-    return {
-        "scholarship": scholarship,
-        "agent": agent_name,
-        "criteria_ref": crit_ref,
-        "criteria_text": crit_value,
-    }
-
-
-@app.put("/admin/{scholarship}/criteria/{agent_name}", tags=["Admin"])
-async def update_agent_criteria(
-    scholarship: str,
-    agent_name: str,
-    payload: Dict[str, Any],
-    _: None = Depends(require_admin),
-):
-    """Update criteria text for a specific agent and regenerate artifacts."""
-    config = load_scholarship_config(scholarship)
-    agents_cfg = config.get("agents", {})
-    criteria_text = config.get("criteria_text", {})
-
-    if agent_name not in agents_cfg:
-        raise HTTPException(status_code=404, detail=f"Unknown agent: {agent_name}")
-
-    crit_ref = agents_cfg[agent_name].get("criteria_ref")
-    if not crit_ref:
-        raise HTTPException(status_code=400, detail=f"Agent {agent_name} does not use criteria_ref")
-
-    new_text = payload.get("criteria_text")
-    if not isinstance(new_text, str) or not new_text.strip():
-        raise HTTPException(status_code=400, detail="criteria_text must be a non-empty string")
-
-    # Simple validation: ensure length is reasonable
-    if len(new_text) < 100:
-        raise HTTPException(status_code=400, detail="criteria_text is too short (< 100 characters)")
-
-    criteria_text[crit_ref] = new_text
-    config["criteria_text"] = criteria_text
-
-    # Persist back to config.yml with simple backup
-    config_path = get_scholarship_config_path(scholarship)
-    backup_path = config_path.with_suffix(".backup")
-    try:
-        import shutil
-        import yaml
-
-        if config_path.exists():
-            shutil.copy2(config_path, backup_path)
-        with open(config_path, "w", encoding="utf-8") as f:
-            yaml.safe_dump(config, f, sort_keys=False, allow_unicode=True)
-    except Exception as e:
-        logger.error(f"Failed to write updated criteria for {scholarship}: {e}")
-        raise HTTPException(status_code=500, detail="Failed to save updated criteria")
-
-    # Regenerate artifacts (criteria/*.txt, etc.)
-    try:
-        from scripts.generate_scholarship_artifacts import main as generate_main
-
-        root = Path(__file__).resolve().parents[1]
-        generate_main([str(root / "scripts/generate_scholarship_artifacts.py"), scholarship])
-    except Exception as e:
-        logger.error(f"Failed to regenerate artifacts for {scholarship}: {e}")
-        raise HTTPException(status_code=500, detail="Criteria saved but artifact regeneration failed")
-
-    return {"status": "ok", "agent": agent_name}
-
-
-@app.post("/admin/{scholarship}/criteria/{agent_name}/regenerate", tags=["Admin"])
-async def regenerate_agent_criteria_with_llm(
-    scholarship: str,
-    agent_name: str,
-    payload: Dict[str, Any],
-    _: None = Depends(require_admin),
-):
-    """Generate a new criteria draft for an agent using an LLM.
-
-    This endpoint does NOT persist changes automatically. It returns a
-    proposed `criteria_text` that an admin can review and then apply via
-    the standard PUT /admin/{scholarship}/criteria/{agent_name} endpoint.
-    """
-    from beeai_framework.backend.chat import ChatModel  # type: ignore
-
-    config = load_scholarship_config(scholarship)
-    agents_cfg = config.get("agents", {})
-    criteria_text = config.get("criteria_text", {})
-
-    if agent_name not in agents_cfg:
-        raise HTTPException(status_code=404, detail=f"Unknown agent: {agent_name}")
-
-    agent_cfg = agents_cfg[agent_name]
-    crit_ref = agent_cfg.get("criteria_ref")
-    if not crit_ref:
-        raise HTTPException(status_code=400, detail=f"Agent {agent_name} does not use criteria_ref")
-
-    current_text = criteria_text.get(crit_ref, "")
-    base_description = payload.get("base_description") or agent_cfg.get("description", "")
-    target_model = payload.get("target_model") or os.getenv("PRIMARY_MODEL", "ollama:llama3.2:1b")
-
-    system_prompt = (
-        "You are an expert in designing scoring rubrics for scholarship application agents.\n"
-        "Generate clear, structured evaluation criteria text suitable to be used as a prompt\n"
-        "for an LLM that will score this agent. The output should be plain text with headings\n"
-        "and bullet points, not JSON. Do not include instructions about JSON schemas.\n"
-    )
-
-    user_prompt_parts = [
-        f"Scholarship ID: {scholarship}",
-        f"Agent name: {agent_name}",
-        f"Agent description: {base_description}",
-        f"Target model identifier: {target_model}",
-    ]
-    if current_text:
-        user_prompt_parts.append(
-            "Current criteria text (improve and refine, but keep intent compatible):\n"
-            f"{current_text}"
-        )
-    else:
-        user_prompt_parts.append("No existing criteria text; create a new rubric from scratch.")
-
-    user_prompt = "\n\n".join(user_prompt_parts)
-
-    try:
-        chat_model = ChatModel.from_name(target_model)
-        from beeai_framework.backend.message import UserMessage  # type: ignore
-
-        messages = [
-            UserMessage(system_prompt),
-            UserMessage(user_prompt),
-        ]
-        # Run synchronously via asyncio wrapper
-        import asyncio
-
-        async def _run():
-            result = await chat_model.run(messages)
-            return result.last_message.text if result and result.last_message else ""
-
-        new_text = asyncio.run(_run())
-    except Exception as e:
-        logger.error(f"Failed to regenerate criteria with LLM for {scholarship}/{agent_name}: {e}")
-        raise HTTPException(status_code=500, detail="LLM criteria generation failed")
-
-    if not new_text or len(new_text) < 100:
-        raise HTTPException(status_code=500, detail="Generated criteria text is too short or empty")
-
-    return {
-        "scholarship": scholarship,
-        "agent": agent_name,
-        "criteria_ref": crit_ref,
-        "current_criteria_text": current_text,
-        "proposed_criteria_text": new_text,
-    }
-
-
-@app.get("/criteria", tags=["Criteria"])
-async def list_criteria(
-    request: Request,
-    scholarship: str = Query(..., description="Scholarship name (e.g., 'Delaney_Wings' or 'Evans_Wings')")
-):
-    """List all available criteria files for a scholarship with fully qualified URLs.
-    
-    Args:
-        scholarship: Name of the scholarship
-        
-    Returns:
-        Dictionary with list of criteria and their download URLs
-    """
-    get_data_service(scholarship)  # Validate scholarship exists
-    
-    criteria_dir = Path("data") / scholarship / "criteria"
-    
-    if not criteria_dir.exists():
-        logger.warning(f"Criteria directory not found: {criteria_dir}")
-        raise HTTPException(
-            status_code=404,
-            detail=f"No criteria found for scholarship: {scholarship}"
-        )
-    
-    # Get base URL from request
-    base_url = str(request.base_url).rstrip('/') if request else "http://localhost:8200"
-    
-    criteria_files = []
-    for file_path in sorted(criteria_dir.glob("*.txt")):
-        criteria_name = file_path.stem  # filename without extension
-        criteria_files.append({
-            "name": criteria_name,
-            "filename": file_path.name,
-            "url": f"{base_url}/criteria/{scholarship}/{file_path.name}"
-        })
-    
-    logger.info(f"Listed {len(criteria_files)} criteria files for {scholarship}")
-    
-    return {
-        "scholarship": scholarship,
-        "criteria_count": len(criteria_files),
-        "criteria": criteria_files
-    }
-
-
-@app.get("/criteria/{scholarship}/{filename}", tags=["Criteria"])
-async def get_criteria_file(
-    scholarship: str,
-    filename: str
-):
-    """Download a specific criteria file.
-    
-    Args:
-        scholarship: Name of the scholarship
-        filename: Criteria filename (e.g., 'academic_criteria.txt')
-        
-    Returns:
-        File content as plain text
-    """
-    get_data_service(scholarship)  # Validate scholarship exists
-    
-    criteria_file = Path("data") / scholarship / "criteria" / filename
-    
-    if not criteria_file.exists() or not criteria_file.suffix == '.txt':
-        logger.warning(f"Criteria file not found: {criteria_file}")
-        raise HTTPException(
-            status_code=404,
-            detail=f"Criteria file not found: {filename}"
-        )
-    
-    logger.info(f"Serving criteria file: {scholarship}/{filename}")
-    
-    return FileResponse(
-        criteria_file,
-        media_type="text/plain",
-        filename=filename
-    )
-
-
-@app.get("/health", tags=["Health"])
-async def health_check(
-    scholarship: Optional[str] = Query(None, description="Scholarship name (optional)")
-):
-    """Health check endpoint. Optionally check a specific scholarship.
-    
-    Args:
-        scholarship: Name of the scholarship (optional)
-    """
-    if scholarship:
-        # Check specific scholarship
-        data_service = get_data_service(scholarship)
-        return {
-            "status": "healthy",
-            "scholarship": data_service.scholarship_name,
-            "total_applications": len(data_service.get_all_wai_numbers())
-        }
-    else:
-        # General health check
-        return {
-            "status": "healthy",
-            "available_scholarships": list(data_services.keys()),
-            "total_scholarships": len(data_services)
-        }
+# REMOVED: Duplicate endpoint - now handled by bee_agents/api_routers/health.py
 
 
 @app.get("/openapi.yml", tags=["Documentation"])
@@ -652,255 +312,19 @@ async def get_openapi_json():
     )
 
 
-@app.get("/top_scores", response_model=TopScoresResponse, tags=["Scores"])
-async def get_top_scores(
-    scholarship: str = Query(..., description="Scholarship name (e.g., 'Delaney_Wings' or 'Evans_Wings')"),
-    limit: int = Query(10, ge=1, le=100, description="Number of top scores to return")
-):
-    """Get top scoring applications for a specific scholarship.
-    
-    Args:
-        scholarship: Name of the scholarship
-        limit: Maximum number of results to return (1-100)
-        
-    Returns:
-        TopScoresResponse with list of top scoring applications
-    """
-    data_service = get_data_service(scholarship)
-    
-    try:
-        top_scores = data_service.get_top_scores(limit)
-        return TopScoresResponse(
-            scholarship=data_service.scholarship_name,
-            total_applications=len(data_service.get_all_wai_numbers()),
-            top_scores=[ScoreResponse(**score) for score in top_scores]
-        )
-    except Exception as e:
-        logger.error(f"Error getting top scores: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+# REMOVED: Duplicate score endpoints - now handled by bee_agents/api_routers/scores.py
+# The following endpoints are defined in the scores router:
+# - GET /top_scores
+# - GET /score
+# - GET /statistics
 
 
-@app.get("/score", response_model=ScoreResponse, tags=["Scores"])
-async def get_individual_score(
-    scholarship: str = Query(..., description="Scholarship name (e.g., 'Delaney_Wings' or 'Evans_Wings')"),
-    wai_number: str = Query(..., description="WAI application number")
-):
-    """Get score for a specific application.
-    
-    Args:
-        scholarship: Name of the scholarship
-        wai_number: WAI application number
-        
-    Returns:
-        ScoreResponse with application scores and applicant information
-    """
-    data_service = get_data_service(scholarship)
-    
-    try:
-        analysis = data_service.load_application_analysis(wai_number)
-        if not analysis:
-            raise HTTPException(status_code=404, detail=f"Application {wai_number} not found")
-        
-        # Load applicant data
-        app_data = data_service.load_application_data(wai_number)
-        
-        return ScoreResponse(
-            wai_number=wai_number,
-            name=app_data.get('name') if app_data else None,
-            city=app_data.get('city') if app_data else None,
-            state=app_data.get('state') if app_data else None,
-            country=app_data.get('country') if app_data else None,
-            overall_score=analysis['scores']['overall_score'],
-            completeness_score=analysis['scores']['completeness_score'],
-            validity_score=analysis['scores']['validity_score'],
-            attachment_score=analysis['scores']['attachment_score'],
-            summary=analysis['summary']
-        )
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"Error getting score for {wai_number}: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
-
-
-@app.get("/statistics", response_model=StatisticsResponse, tags=["Statistics"])
-async def get_statistics(
-    scholarship: str = Query(..., description="Scholarship name (e.g., 'Delaney_Wings' or 'Evans_Wings')")
-):
-    """Get statistics for all applications in a specific scholarship.
-    
-    Args:
-        scholarship: Name of the scholarship
-    
-    Returns:
-        StatisticsResponse with aggregated statistics
-    """
-    data_service = get_data_service(scholarship)
-    
-    try:
-        logger.info(f"Fetching statistics for scholarship: {scholarship}")
-        stats = data_service.get_statistics()
-        
-        if not stats:
-            logger.warning(f"No statistics data returned for {scholarship}")
-            raise HTTPException(
-                status_code=404,
-                detail=f"No statistics available for scholarship: {scholarship}"
-            )
-        
-        response_data = StatisticsResponse(
-            scholarship=data_service.scholarship_name,
-            **stats
-        )
-        
-        logger.info(
-            f"Statistics retrieved for {scholarship}: "
-            f"total_apps={stats.get('total_applications', 0)}, "
-            f"avg_score={stats.get('average_score', 0):.2f}, "
-            f"median={stats.get('median_score', 0):.2f}, "
-            f"min={stats.get('min_score', 0)}, "
-            f"max={stats.get('max_score', 0)}"
-        )
-        logger.debug(f"Full response data: {response_data.model_dump()}")
-        
-        return response_data
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(
-            f"Error getting statistics for {scholarship}: {e}",
-            extra={
-                "scholarship": scholarship,
-                "error_type": type(e).__name__
-            },
-            exc_info=True
-        )
-        raise HTTPException(status_code=500, detail=str(e))
-
-
-@app.get("/application", response_model=ApplicationAnalysisResponse, tags=["Analysis"])
-async def get_application_analysis(
-    scholarship: str = Query(..., description="Scholarship name (e.g., 'Delaney_Wings' or 'Evans_Wings')"),
-    wai_number: str = Query(..., description="WAI application number")
-):
-    """Get detailed application analysis.
-    
-    Args:
-        scholarship: Name of the scholarship
-        wai_number: WAI application number
-        
-    Returns:
-        ApplicationAnalysisResponse with detailed analysis
-    """
-    data_service = get_data_service(scholarship)
-    
-    try:
-        analysis = data_service.load_application_analysis(wai_number)
-        if not analysis:
-            raise HTTPException(status_code=404, detail=f"Application {wai_number} not found")
-        
-        return ApplicationAnalysisResponse(**analysis)
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"Error getting application analysis for {wai_number}: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
-
-
-@app.get("/academic", response_model=AcademicAnalysisResponse, tags=["Analysis"])
-async def get_academic_analysis(
-    scholarship: str = Query(..., description="Scholarship name (e.g., 'Delaney_Wings' or 'Evans_Wings')"),
-    wai_number: str = Query(..., description="WAI application number")
-):
-    """Get academic analysis for an application.
-    
-    Args:
-        scholarship: Name of the scholarship
-        wai_number: WAI application number
-        
-    Returns:
-        AcademicAnalysisResponse with academic analysis
-    """
-    data_service = get_data_service(scholarship)
-    
-    try:
-        analysis = data_service.load_academic_analysis(wai_number)
-        if not analysis:
-            raise HTTPException(
-                status_code=404,
-                detail=f"Academic analysis for {wai_number} not found"
-            )
-        
-        return AcademicAnalysisResponse(**analysis)
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"Error getting academic analysis for {wai_number}: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
-
-
-@app.get("/essay", tags=["Analysis"])
-async def get_essay_analysis(
-    scholarship: str = Query(..., description="Scholarship name (e.g., 'Delaney_Wings' or 'Evans_Wings')"),
-    wai_number: str = Query(..., description="WAI application number")
-):
-    """Get combined essay analysis for an application.
-    
-    Args:
-        scholarship: Name of the scholarship
-        wai_number: WAI application number
-        
-    Returns:
-        Combined analysis of all essays
-    """
-    data_service = get_data_service(scholarship)
-    
-    try:
-        combined = data_service.load_combined_essay_analysis(wai_number)
-        if not combined:
-            raise HTTPException(
-                status_code=404,
-                detail=f"No essay analyses found for {wai_number}"
-            )
-        
-        return combined
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"Error getting essay analyses for {wai_number}: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
-
-
-@app.get("/recommendation", tags=["Analysis"])
-async def get_recommendation_analysis(
-    scholarship: str = Query(..., description="Scholarship name (e.g., 'Delaney_Wings' or 'Evans_Wings')"),
-    wai_number: str = Query(..., description="WAI application number")
-):
-    """Get combined recommendation analysis for an application.
-    
-    Args:
-        scholarship: Name of the scholarship
-        wai_number: WAI application number
-        
-    Returns:
-        Combined analysis of all recommendations
-    """
-    data_service = get_data_service(scholarship)
-    
-    try:
-        combined = data_service.load_combined_recommendation_analysis(wai_number)
-        if not combined:
-            raise HTTPException(
-                status_code=404,
-                detail=f"No recommendation analyses found for {wai_number}"
-            )
-        
-        return combined
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"Error getting recommendation analyses for {wai_number}: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+# REMOVED: Duplicate analysis endpoints - now handled by bee_agents/api_routers/analysis.py
+# The following endpoints are defined in the analysis router:
+# - GET /application
+# - GET /academic
+# - GET /essay
+# - GET /recommendation
 
 
 @app.get("/attachments", tags=["Attachments"])
@@ -1175,82 +599,22 @@ async def download_attachment(scholarship: str, wai_number: str, filename: str):
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@app.get("/criteria", tags=["Criteria"])
-async def list_criteria(
-    scholarship: str = Query(..., description="Scholarship name (e.g., 'Delaney_Wings' or 'Evans_Wings')")
-):
-    """List all available evaluation criteria for the scholarship.
-    
-    Args:
-        scholarship: Name of the scholarship
-    
-    Returns:
-        List of available criteria types with descriptions
-    """
-    data_service = get_data_service(scholarship)
-    
-    try:
-        criteria_dir = Path("data") / data_service.scholarship_name / "criteria"
-        
-        if not criteria_dir.exists():
-            raise HTTPException(
-                status_code=404,
-                detail=f"Criteria directory not found for {data_service.scholarship_name}"
-            )
-        
-        criteria_files = []
-        criteria_types = {
-            "application_criteria.txt": {
-                "name": "Application Criteria",
-                "description": "Criteria for evaluating application completeness and validity"
-            },
-            "academic_criteria.txt": {
-                "name": "Academic Criteria",
-                "description": "Criteria for evaluating academic performance and readiness"
-            },
-            "essay_criteria.txt": {
-                "name": "Essay Criteria",
-                "description": "Criteria for evaluating essay quality and content"
-            },
-            "recommendation_criteria.txt": {
-                "name": "Recommendation Criteria",
-                "description": "Criteria for evaluating letters of recommendation"
-            },
-            "social_criteria.txt": {
-                "name": "Social Criteria",
-                "description": "Criteria for evaluating social impact and community involvement"
-            }
-        }
-        
-        for filename, info in criteria_types.items():
-            file_path = criteria_dir / filename
-            if file_path.exists():
-                criteria_files.append({
-                    "type": filename.replace("_criteria.txt", ""),
-                    "name": info["name"],
-                    "description": info["description"],
-                    "filename": filename,
-                    "url": f"/criteria/{filename.replace('_criteria.txt', '')}"
-                })
-        
-        return {
-            "scholarship": data_service.scholarship_name,
-            "criteria_count": len(criteria_files),
-            "criteria": criteria_files
-        }
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"Error listing criteria: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+# REMOVED: Second duplicate list_criteria endpoint - now handled by bee_agents/api_routers/criteria.py
+# REMOVED: get_criteria endpoint - this was a different implementation not in the router
 
+# Note: The criteria router provides:
+# - GET /criteria?scholarship={name} - lists all criteria files
+# - GET /criteria/{scholarship}/{filename} - downloads specific criteria file
+#
+# The old get_criteria endpoint (GET /criteria/{criteria_type}) had a different URL pattern
+# and is not currently implemented in the router. If needed, it should be added to the router.
 
 @app.get("/criteria/{criteria_type}", tags=["Criteria"])
-async def get_criteria(
+async def get_criteria_legacy(
     criteria_type: str,
     scholarship: str = Query(..., description="Scholarship name (e.g., 'Delaney_Wings' or 'Evans_Wings')")
 ):
-    """Get evaluation criteria for a specific type.
+    """Get evaluation criteria for a specific type (legacy endpoint).
     
     Args:
         criteria_type: Type of criteria (application, academic, essay, recommendation, social)

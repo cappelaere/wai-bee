@@ -53,6 +53,13 @@ from .logging_config import setup_logging
 from .chat_agents import MultiAgentOrchestrator
 from .chat_agents_single import SingleAgentHandler
 
+# Import modular chat routers
+from .chat_routers import (
+    auth_router,
+    scholarship_router,
+    chat_router
+)
+
 # OpenInference BeeAI instrumentation with OpenTelemetry
 from openinference.instrumentation.beeai import BeeAIInstrumentor
 from opentelemetry import trace as trace_api
@@ -200,162 +207,30 @@ if static_dir.exists():
     app.mount("/static", StaticFiles(directory=str(static_dir)), name="static")
 
 
-@app.get("/favicon.ico")
-async def favicon():
-    """Serve the favicon."""
-    import os
-    favicon_path = os.path.join(os.path.dirname(__file__), "static", "favicon.ico")
-    if os.path.exists(favicon_path):
-        return FileResponse(favicon_path, media_type="image/x-icon")
-    from fastapi.responses import Response
-    return Response(status_code=204)
+# Include modular chat routers
+app.include_router(auth_router)
+app.include_router(scholarship_router)
+app.include_router(chat_router)
+
+logger.info("Modular chat routers integrated successfully")
 
 
-@app.get("/login", response_class=HTMLResponse)
-async def get_login_page():
-    """Serve the login page."""
-    template_path = Path(__file__).parent / "templates" / "login.html"
-    
-    try:
-        with open(template_path, 'r', encoding='utf-8') as f:
-            html_content = f.read()
-        return HTMLResponse(content=html_content)
-    except FileNotFoundError:
-        logger.error(f"Login template not found: {template_path}")
-        raise HTTPException(status_code=500, detail="Login template not found")
+# Note: favicon and other endpoints are now in chat_router
+# Remove duplicate endpoints below if they exist
 
 
-@app.post("/login", response_model=LoginResponse)
-async def login(request: LoginRequest):
-    """Handle login requests with scholarship context."""
-    # Verify credentials
-    if not verify_credentials(request.username, request.password):
-        raise HTTPException(status_code=401, detail="Invalid username or password")
-    
-    # Create token with full context
-    token_response = create_token_with_context(request.username)
-    logger.info(
-        f"User logged in: {request.username}",
-        extra={
-            "username": request.username,
-            "role": token_response["role"],
-            "scholarships": token_response["scholarships"]
-        }
-    )
-    
-    return LoginResponse(**token_response)
+# REMOVED: Duplicate endpoints - now handled by bee_agents/chat_routers/
+# The following endpoints are defined in the chat routers:
+# - GET /login (auth.py)
+# - POST /login (auth.py)
+# - POST /logout (auth.py)
+# - GET /select-scholarship (scholarship.py)
+# - POST /api/user/select-scholarship (scholarship.py)
+# - GET /about (chat.py)
+# - GET /examples (chat.py)
+# - GET /admin/config (chat.py)
 
-
-@app.get("/select-scholarship", response_class=HTMLResponse)
-async def get_scholarship_selection_page():
-    """Serve the scholarship selection page."""
-    template_path = Path(__file__).parent / "templates" / "select_scholarship.html"
-    
-    try:
-        with open(template_path, 'r', encoding='utf-8') as f:
-            html_content = f.read()
-        return HTMLResponse(content=html_content)
-    except FileNotFoundError:
-        logger.error(f"Scholarship selection template not found: {template_path}")
-        raise HTTPException(status_code=500, detail="Template not found")
-
-
-@app.post("/api/user/select-scholarship")
-async def select_scholarship(
-    request: dict,
-    auth_token: Optional[str] = Cookie(None)
-):
-    """Store the user's selected scholarship in their session."""
-    if not auth_token:
-        raise HTTPException(status_code=401, detail="Not authenticated")
-    
-    token_data = verify_token_with_context(auth_token)
-    if not token_data:
-        raise HTTPException(status_code=401, detail="Invalid or expired token")
-    
-    scholarship = request.get("scholarship")
-    if not scholarship:
-        raise HTTPException(status_code=400, detail="Scholarship not provided")
-    
-    # Verify user has access to this scholarship
-    middleware = ScholarshipAccessMiddleware(token_data)
-    if not middleware.can_access_scholarship(scholarship):
-        raise HTTPException(status_code=403, detail="Access denied to this scholarship")
-    
-    # Store selected scholarship in token data
-    from .auth import active_tokens
-    if auth_token in active_tokens:
-        active_tokens[auth_token]["selected_scholarship"] = scholarship
-        logger.info(
-            f"User selected scholarship: {token_data['username']} -> {scholarship}",
-            extra={
-                "username": token_data["username"],
-                "scholarship": scholarship
-            }
-        )
-    
-    return {"message": "Scholarship selected successfully", "scholarship": scholarship}
-
-
-@app.post("/logout")
-async def logout(auth_token: Optional[str] = Cookie(None)):
-    """Handle logout requests."""
-    if auth_token:
-        username = verify_token(auth_token)
-        if username:
-            revoke_token(auth_token)
-            logger.info(f"User logged out: {username}")
-    
-    return {"message": "Logged out successfully"}
-
-
-@app.get("/about", response_class=HTMLResponse)
-async def get_about_page():
-    """Serve the about page (no authentication required)."""
-    template_path = Path(__file__).parent / "templates" / "about.html"
-    
-    try:
-        with open(template_path, 'r', encoding='utf-8') as f:
-            html_content = f.read()
-        return HTMLResponse(content=html_content)
-    except FileNotFoundError:
-        logger.error(f"About template not found: {template_path}")
-        raise HTTPException(status_code=500, detail="About template not found")
-
-
-@app.get("/examples", response_class=HTMLResponse)
-async def get_examples_page():
-    """Serve the examples page (no authentication required)."""
-    template_path = Path(__file__).parent / "templates" / "examples.html"
-    
-    try:
-        with open(template_path, 'r', encoding='utf-8') as f:
-            html_content = f.read()
-        return HTMLResponse(content=html_content)
-    except FileNotFoundError:
-        logger.error(f"Examples template not found: {template_path}")
-        raise HTTPException(status_code=500, detail="Examples template not found")
-
-
-@app.get("/admin/config", response_class=HTMLResponse)
-async def get_admin_config_page(auth_token: Optional[str] = Cookie(None)):
-    """Serve the admin configuration page (admin only)."""
-    # Require authentication with context to check role
-    token_data = verify_token_with_context(auth_token)
-    if not token_data:
-        raise HTTPException(status_code=401, detail="Unauthorized")
-
-    if token_data.get("role") != "admin":
-        raise HTTPException(status_code=403, detail="Admin access required")
-
-    template_path = Path(__file__).parent / "templates" / "admin_config.html"
-    try:
-        with open(template_path, "r", encoding="utf-8") as f:
-            html_content = f.read()
-        return HTMLResponse(content=html_content)
-    except FileNotFoundError:
-        logger.error(f"Admin config template not found: {template_path}")
-        raise HTTPException(status_code=500, detail="Admin config template not found")
+# Duplicate removed - see comment above
 
 
 def get_scholarship_config_path(scholarship_name: str) -> Path:
@@ -687,27 +562,7 @@ async def trigger_pipeline_rerun(
     }
 
 
-@app.get("/", response_class=HTMLResponse)
-async def get_chat_interface(auth_token: Optional[str] = Cookie(None)):
-    """Serve the chat interface HTML (requires authentication)."""
-    # Check authentication
-    username = verify_token(auth_token)
-    if not username:
-        # Redirect to login
-        return Response(
-            content='<script>window.location.href="/login";</script>',
-            media_type="text/html"
-        )
-    
-    template_path = Path(__file__).parent / "templates" / "chat.html"
-    
-    try:
-        with open(template_path, 'r', encoding='utf-8') as f:
-            html_content = f.read()
-        return HTMLResponse(content=html_content)
-    except FileNotFoundError:
-        logger.error(f"Template file not found: {template_path}")
-        raise HTTPException(status_code=500, detail="Chat interface template not found")
+# REMOVED: Duplicate endpoint - now handled by bee_agents/chat_routers/chat.py
 
 
 def extract_auth_token_from_cookies(cookie_header: str) -> Optional[str]:
@@ -932,37 +787,7 @@ If the user asks about other scholarships, politely inform them they don't have 
         })
 
 
-@app.websocket("/ws")
-async def websocket_endpoint(websocket: WebSocket):
-    """WebSocket endpoint for chat communication (requires authentication)."""
-    # Authenticate the connection
-    token_data = await authenticate_websocket(websocket)
-    if not token_data:
-        return
-    
-    await websocket.accept()
-    logger.debug(f"WebSocket connection established for user: {token_data['username']}")
-    
-    try:
-        while True:
-            # Receive message from client
-            data = await websocket.receive_text()
-            message_data = json.loads(data)
-            
-            # Process the message
-            await process_chat_message(websocket, message_data, token_data)
-    
-    except WebSocketDisconnect:
-        logger.debug(f"WebSocket disconnected for user: {token_data['username']}")
-    except Exception as e:
-        logger.error(f"WebSocket error for {token_data['username']}: {e}")
-        try:
-            await websocket.send_json({
-                "type": "error",
-                "message": "Connection error occurred"
-            })
-        except:
-            pass  # Connection already closed
+# REMOVED: Duplicate endpoint - now handled by bee_agents/chat_routers/chat.py
 
 
 @app.get("/api/user/profile")
@@ -989,21 +814,17 @@ async def get_user_profile(auth_token: Optional[str] = Cookie(None)):
     }
 
 
-@app.get("/api/user/scholarships")
-async def get_user_scholarships_endpoint(auth_token: Optional[str] = Cookie(None)):
-    """Get scholarships accessible to current user."""
-    token_data = verify_token_with_context(auth_token)
-    if not token_data:
-        raise HTTPException(status_code=401, detail="Unauthorized")
-    
-    access_control = ScholarshipAccessMiddleware(token_data)
-    # Return list directly for the selection page
-    return access_control.get_accessible_scholarships()
+# REMOVED: Duplicate endpoints - now handled by bee_agents/chat_routers/
+# - GET /api/user/scholarships (scholarship.py)
+# - GET /health (chat.py)
 
+# Note: The health endpoint in chat.py returns different data than the original.
+# The router version is simpler. If agent status is needed, it should be
+# added to the router implementation.
 
-@app.get("/health")
-async def health_check():
-    """Health check endpoint with agent status."""
+# The original health_check function continues below but is not exposed as an endpoint
+def get_agent_status_info():
+    """Get agent status information (helper function, not an endpoint)."""
     if agent_handler is None:
         return {
             "status": "initializing",

@@ -179,9 +179,9 @@ API_SERVER_URL="http://localhost:8200"
 API_SERVER_PORT=8200
 API_SERVER_WORKERS=4
 
-# Data folders (all served by same server)
-DELANEY_WINGS_FOLDER=data/Delaney_Wings
-EVANS_WINGS_FOLDER=data/Evans_Wings
+# Data folders (dynamically resolved via get_scholarship_folder())
+# Example: config.get_scholarship_folder("Delaney_Wings") -> data/Delaney_Wings
+DATA_DIR=data
 ```
 
 ## Request Examples

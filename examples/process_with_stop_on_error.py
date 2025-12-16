@@ -34,7 +34,7 @@ def main():
     
     # Initialize workflow
     workflow = ScholarshipProcessingWorkflow(
-        scholarship_folder=config.DELANEY_WINGS_FOLDER,
+        scholarship_folder=config.get_scholarship_folder("Delaney_Wings"),
         outputs_dir=config.OUTPUTS_DIR
     )
     

@@ -53,10 +53,8 @@ def main():
     logger.info("="*70)
     
     # Determine scholarship folder (parent folder with agents.json)
-    if scholarship == "Delaney_Wings":
-        scholarship_base = config.DELANEY_WINGS_FOLDER
-    elif scholarship == "Evans_Wings":
-        scholarship_base = config.EVANS_WINGS_FOLDER
+    if scholarship in ["Delaney_Wings", "Evans_Wings"]:
+        scholarship_base = config.get_scholarship_folder(scholarship)
     else:
         logger.error(f"Unknown scholarship: {scholarship}")
         logger.error("Valid options: Delaney_Wings, Evans_Wings")

@@ -79,30 +79,24 @@ class Config:
         "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
     )
     
-    # Scholarship Folders
-    DELANEY_WINGS_FOLDER: Path = Path(os.getenv("DELANEY_WINGS_FOLDER", "data/Delaney_Wings"))
-    EVANS_WINGS_FOLDER: Path = Path(os.getenv("EVANS_WINGS_FOLDER", "data/Evans_Wings"))
-    
     @classmethod
-    def get_scholarship_folder(cls, scholarship_name: str) -> Optional[Path]:
+    def get_scholarship_folder(cls, scholarship_name: str) -> Path:
         """Get scholarship folder path by name.
+        
+        All scholarships are stored in subdirectories under DATA_DIR.
         
         Args:
             scholarship_name: Name of scholarship (e.g., "Delaney_Wings", "Evans_Wings").
         
         Returns:
-            Path to scholarship folder, or None if not found.
+            Path to scholarship folder (DATA_DIR / scholarship_name).
         
         Example:
             >>> folder = Config.get_scholarship_folder("Delaney_Wings")
             >>> print(folder)
             data/Delaney_Wings
         """
-        if scholarship_name == "Delaney_Wings":
-            return cls.DELANEY_WINGS_FOLDER
-        elif scholarship_name == "Evans_Wings":
-            return cls.EVANS_WINGS_FOLDER
-        return None
+        return cls.DATA_DIR / scholarship_name
     
     @classmethod
     def validate(cls) -> List[str]:

@@ -11,9 +11,9 @@ License: MIT
 import pytest
 
 
-def test_get_agents_config(test_client):
+def test_get_agents_config(test_client, scholarship_name):
     """Test getting complete agent configuration."""
-    response = test_client.get("/agents")
+    response = test_client.get(f"/agents?scholarship={scholarship_name}")
     
     assert response.status_code == 200
     data = response.json()
@@ -25,14 +25,14 @@ def test_get_agents_config(test_client):
     assert "scoring_agents" in data
     assert "total_weight" in data
     
-    assert data["scholarship_name"] == "Delaney_Wings"
+    assert data["scholarship_name"] == scholarship_name
     assert isinstance(data["agents"], list)
     assert len(data["agents"]) > 0
 
 
-def test_agents_config_structure(test_client):
+def test_agents_config_structure(test_client, scholarship_name):
     """Test that agent configuration has expected structure."""
-    response = test_client.get("/agents")
+    response = test_client.get(f"/agents?scholarship={scholarship_name}")
     
     assert response.status_code == 200
     data = response.json()
@@ -51,9 +51,9 @@ def test_agents_config_structure(test_client):
             assert isinstance(agent["weight"], (int, float))
 
 
-def test_get_application_agent(test_client):
+def test_get_application_agent(test_client, scholarship_name):
     """Test getting application agent configuration."""
-    response = test_client.get("/agents/application")
+    response = test_client.get(f"/agents/application?scholarship={scholarship_name}")
     
     assert response.status_code == 200
     data = response.json()
@@ -68,9 +68,9 @@ def test_get_application_agent(test_client):
     assert agent["weight"] == 0.20
 
 
-def test_get_academic_agent(test_client):
+def test_get_academic_agent(test_client, scholarship_name):
     """Test getting academic agent configuration."""
-    response = test_client.get("/agents/academic")
+    response = test_client.get(f"/agents/academic?scholarship={scholarship_name}")
     
     assert response.status_code == 200
     data = response.json()
@@ -80,9 +80,9 @@ def test_get_academic_agent(test_client):
     assert agent["weight"] == 0.25
 
 
-def test_get_essay_agent(test_client):
+def test_get_essay_agent(test_client, scholarship_name):
     """Test getting essay agent configuration."""
-    response = test_client.get("/agents/essay")
+    response = test_client.get(f"/agents/essay?scholarship={scholarship_name}")
     
     assert response.status_code == 200
     data = response.json()
@@ -92,9 +92,9 @@ def test_get_essay_agent(test_client):
     assert agent["weight"] == 0.30
 
 
-def test_get_recommendation_agent(test_client):
+def test_get_recommendation_agent(test_client, scholarship_name):
     """Test getting recommendation agent configuration."""
-    response = test_client.get("/agents/recommendation")
+    response = test_client.get(f"/agents/recommendation?scholarship={scholarship_name}")
     
     assert response.status_code == 200
     data = response.json()
@@ -104,9 +104,9 @@ def test_get_recommendation_agent(test_client):
     assert agent["weight"] == 0.25
 
 
-def test_get_attachment_agent(test_client):
+def test_get_attachment_agent(test_client, scholarship_name):
     """Test getting attachment agent configuration."""
-    response = test_client.get("/agents/attachment")
+    response = test_client.get(f"/agents/attachment?scholarship={scholarship_name}")
     
     assert response.status_code == 200
     data = response.json()
@@ -117,9 +117,9 @@ def test_get_attachment_agent(test_client):
     assert agent["weight"] is None
 
 
-def test_get_invalid_agent(test_client):
+def test_get_invalid_agent(test_client, scholarship_name):
     """Test getting configuration for non-existent agent."""
-    response = test_client.get("/agents/invalid_agent")
+    response = test_client.get(f"/agents/invalid_agent?scholarship={scholarship_name}")
     
     assert response.status_code == 404
     data = response.json()
@@ -128,9 +128,9 @@ def test_get_invalid_agent(test_client):
     assert "not found" in data["detail"].lower()
 
 
-def test_scoring_agents_weights_sum_to_one(test_client):
+def test_scoring_agents_weights_sum_to_one(test_client, scholarship_name):
     """Test that scoring agent weights sum to 1.0."""
-    response = test_client.get("/agents")
+    response = test_client.get(f"/agents?scholarship={scholarship_name}")
     
     assert response.status_code == 200
     data = response.json()
@@ -145,9 +145,9 @@ def test_scoring_agents_weights_sum_to_one(test_client):
     assert abs(total_weight - 1.0) < 0.01
 
 
-def test_all_scoring_agents_have_weights(test_client):
+def test_all_scoring_agents_have_weights(test_client, scholarship_name):
     """Test that all scoring agents have defined weights."""
-    response = test_client.get("/agents")
+    response = test_client.get(f"/agents?scholarship={scholarship_name}")
     
     assert response.status_code == 200
     data = response.json()
@@ -160,9 +160,9 @@ def test_all_scoring_agents_have_weights(test_client):
             assert agent["weight"] > 0
 
 
-def test_agent_evaluates_field(test_client):
+def test_agent_evaluates_field(test_client, scholarship_name):
     """Test that agents have evaluates field with content."""
-    response = test_client.get("/agents/application")
+    response = test_client.get(f"/agents/application?scholarship={scholarship_name}")
     
     assert response.status_code == 200
     data = response.json()
@@ -173,9 +173,9 @@ def test_agent_evaluates_field(test_client):
     assert len(agent["evaluates"]) > 0
 
 
-def test_agent_criteria_field(test_client):
+def test_agent_criteria_field(test_client, scholarship_name):
     """Test that scoring agents have criteria field."""
-    response = test_client.get("/agents/academic")
+    response = test_client.get(f"/agents/academic?scholarship={scholarship_name}")
     
     assert response.status_code == 200
     data = response.json()

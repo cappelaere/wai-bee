@@ -99,7 +99,7 @@ agent = ApplicationAgent()
 
 # Process applications using config values
 result = agent.process_applications(
-    scholarship_folder=str(config.DELANEY_WINGS_FOLDER / "Applications"),
+    scholarship_folder=str(config.get_scholarship_folder("Delaney_Wings") / "Applications"),
     max_applications=config.MAX_APPLICATIONS,
     skip_processed=config.SKIP_PROCESSED,
     overwrite=config.OVERWRITE_EXISTING,

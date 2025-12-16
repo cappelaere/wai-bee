@@ -64,7 +64,7 @@ def main():
     log_performance(logger, "Agent initialization", init_duration)
     
     # Process applications
-    scholarship_folder = str(config.DELANEY_WINGS_FOLDER / "Applications")
+    scholarship_folder = str(config.get_scholarship_folder("Delaney_Wings") / "Applications")
     
     logger.info(f"\nProcessing applications from: {scholarship_folder}")
     logger.info("="*60)

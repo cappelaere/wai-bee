@@ -45,7 +45,7 @@ def main():
     logger.info(f"\nProcessing application for WAI {wai_number}...")
     result = agent.analyze_application(
         wai_number=wai_number,
-        scholarship_folder=str(config.DELANEY_WINGS_FOLDER),
+        scholarship_folder=str(config.get_scholarship_folder("Delaney_Wings")),
         output_dir=str(config.OUTPUTS_DIR),
         model="ollama/llama3.2:3b",  # Use 3b model for scoring
         max_retries=3

@@ -19,12 +19,12 @@ def test_root_endpoint(test_client):
     data = response.json()
     
     assert "message" in data
-    assert "scholarship" in data
+    assert "available_scholarships" in data
     assert "version" in data
     assert "status" in data
     
-    assert data["scholarship"] == "Delaney_Wings"
-    assert data["version"] == "1.0.0"
+    assert isinstance(data["available_scholarships"], list)
+    assert len(data["available_scholarships"]) > 0
     assert data["status"] == "operational"
 
 
@@ -36,13 +36,14 @@ def test_health_check(test_client):
     data = response.json()
     
     assert "status" in data
-    assert "scholarship" in data
-    assert "total_applications" in data
+    assert "scholarships" in data
+    assert "total_scholarships" in data
     
     assert data["status"] == "healthy"
-    assert data["scholarship"] == "Delaney_Wings"
-    assert isinstance(data["total_applications"], int)
-    assert data["total_applications"] > 0
+    assert isinstance(data["scholarships"], list)
+    assert len(data["scholarships"]) > 0
+    assert isinstance(data["total_scholarships"], int)
+    assert data["total_scholarships"] > 0
 
 
 def test_openapi_yaml_endpoint(test_client):
