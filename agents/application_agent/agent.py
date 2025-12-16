@@ -41,14 +41,19 @@ load_dotenv()
 from models.application_data import ApplicationData, ProcessingResult
 from utils.folder_scanner import scan_scholarship_folder, get_wai_number
 from utils.file_identifier import find_application_file
-from utils.document_parser import parse_document
+
+MARKDOWN_PARSER = os.environ.get('MARKDOWN_PARSER', 'false').lower() == 'true'
+
+from utils.document_parser import parse_document, get_converter
+from utils.document_parser import parse_document_markdown, get_markitdown_converter
+
 from .llm_service import LLMService
 from .validation_service import ValidationService
 from .file_service import FileService
 
 logger = logging.getLogger()
 
-
+logger.info(f"MARKDOWN_PARSER: {MARKDOWN_PARSER}")
 class ApplicationAgent:
     """Agent for processing scholarship applications.
     
@@ -82,8 +87,10 @@ class ApplicationAgent:
         DocumentConverter for efficient reuse across multiple documents.
         """
         # Initialize the document converter once for reuse
-        from utils.document_parser import get_converter
-        self.converter = get_converter()
+        if MARKDOWN_PARSER:
+            self.md_converter = get_markitdown_converter()
+        else:
+            self.converter = get_converter()
         logger.info("Application Agent initialized with DocumentConverter")
     
     def analyze_application(
@@ -360,7 +367,10 @@ class ApplicationAgent:
         if extracted_data is None:
             # ========== STEP 3: Extract Application Data ==========
             logger.info(f"Parsing document: {app_file.name}")
-            document_text = parse_document(app_file, self.converter)
+            if MARKDOWN_PARSER:
+                document_text = parse_document_markdown(app_file, self.md_converter)
+            else:
+                document_text = parse_document(app_file, self.converter)
             if not document_text:
                 result.add_error(
                     wai_number,

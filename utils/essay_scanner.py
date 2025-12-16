@@ -11,7 +11,9 @@ License: MIT
 
 import logging
 from pathlib import Path
+import os
 
+MARKDOWN_PARSER = os.environ.get("MARKDOWN_PARSER", "false").lower() == "true"
 
 def find_essay_files(
     output_base_dir: Path,
@@ -94,16 +96,29 @@ def read_essay_text(essay_file: Path) -> str:
         Essay length: 2543 characters
     """
     logger = logging.getLogger()
-    
-    if not essay_file.exists():
-        raise FileNotFoundError(f"Essay file not found: {essay_file}")
-    
+
+    target_path = essay_file
+
+    # When MARKDOWN_PARSER is enabled, prefer a corresponding .md file
+    if MARKDOWN_PARSER:
+        md_path = essay_file.with_suffix(".md")
+        if md_path.exists():
+            logger.info(f"Using Markdown essay file instead of text: {md_path.name}")
+            target_path = md_path
+        elif not essay_file.exists():
+            logger.warning(
+                f"Markdown parser enabled but neither .md nor .txt essay file found for: {essay_file}"
+            )
+
+    if not target_path.exists():
+        raise FileNotFoundError(f"Essay file not found: {target_path}")
+
     try:
-        text = essay_file.read_text(encoding='utf-8')
-        logger.debug(f"Read {len(text)} characters from {essay_file.name}")
+        text = target_path.read_text(encoding='utf-8')
+        logger.debug(f"Read {len(text)} characters from {target_path.name}")
         return text
     except Exception as e:
-        logger.error(f"Error reading essay file {essay_file}: {e}")
+        logger.error(f"Error reading essay file {target_path}: {e}")
         raise IOError(f"Failed to read essay file: {e}")
 
 

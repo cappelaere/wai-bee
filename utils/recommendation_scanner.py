@@ -12,8 +12,11 @@ License: MIT
 import logging
 from pathlib import Path
 from typing import Optional
+import os
 
 logger = logging.getLogger()
+
+MARKDOWN_PARSER = os.environ.get("MARKDOWN_PARSER", "false").lower() == "true"
 
 
 def find_recommendation_files(
@@ -86,10 +89,24 @@ def read_recommendation_text(file_path: Path) -> str:
         >>> print(len(text))
         2173
     """
+    target_path = file_path
+
+    # When MARKDOWN_PARSER is enabled, prefer a corresponding .md file
+    if MARKDOWN_PARSER:
+        md_path = file_path.with_suffix(".md")
+        if md_path.exists():
+            logger.info(f"Using Markdown recommendation file instead of text: {md_path.name}")
+            target_path = md_path
+        elif not file_path.exists():
+            logger.warning(
+                "Markdown parser enabled but neither .md nor .txt recommendation file "
+                f"found for: {file_path}"
+            )
+
     try:
-        with open(file_path, 'r', encoding='utf-8') as f:
+        with open(target_path, 'r', encoding='utf-8') as f:
             content = f.read()
-        logger.debug(f"Read {len(content)} characters from {file_path.name}")
+        logger.debug(f"Read {len(content)} characters from {target_path.name}")
         return content
     except FileNotFoundError:
         logger.error(f"File not found: {file_path}")

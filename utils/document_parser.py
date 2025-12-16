@@ -22,15 +22,16 @@ Example:
     >>> if text:
     ...     print(f"Extracted {len(text)} characters")
 """
-
+import os
 import logging
 from pathlib import Path
 from typing import Optional
 
 logger = logging.getLogger()
 
-# Global converter instance (initialized on first use)
-_converter = None
+# Global converter instances (initialized on first use)
+_converter = None          # Docling converter
+_md_converter = None       # MarkItDown converter (optional alternate backend)
 
 
 def get_converter():
@@ -46,9 +47,32 @@ def get_converter():
     global _converter
     if _converter is None:
         from docling.document_converter import DocumentConverter
-        logger.info("Initializing DocumentConverter (one-time setup)")
+        logger.info("Initializing Docling DocumentConverter (one-time setup)")
         _converter = DocumentConverter()
     return _converter
+
+
+def get_markitdown_converter():
+    """Get or create a global MarkItDown instance.
+    
+    This provides an alternate backend for document parsing that uses the
+    `markitdown` library instead of Docling. It can be used for experiments
+    or side-by-side comparisons without changing the existing Docling-based
+    behavior.
+    """
+    global _md_converter
+    if _md_converter is None:
+        try:
+            from markitdown import MarkItDown  # type: ignore
+        except ImportError as e:
+            logger.error(f"markitdown library not installed: {e}")
+            raise ImportError(
+                "markitdown library is required for MarkItDown-based parsing. "
+                "Install it with: pip install markitdown"
+            )
+        logger.info("Initializing MarkItDown converter (one-time setup)")
+        _md_converter = MarkItDown()
+    return _md_converter
 
 
 def parse_document(file_path: Path, converter=None) -> Optional[str]:
@@ -80,11 +104,11 @@ def parse_document(file_path: Path, converter=None) -> Optional[str]:
     try:
         logger.info(f"Parsing document: {file_path.name}")
         
-        # Use provided converter or get the global instance
+        # Use provided converter or get the global Docling instance
         if converter is None:
             converter = get_converter()
         
-        # Convert the document
+        # Convert the document with Docling
         result = converter.convert(str(file_path))
         
         # Extract text from the result
@@ -109,6 +133,54 @@ def parse_document(file_path: Path, converter=None) -> Optional[str]:
         )
     except Exception as e:
         logger.error(f"Error parsing document {file_path.name}: {str(e)}")
+        return None
+
+
+def parse_document_markdown(file_path: Path, converter=None) -> Optional[str]:
+    """Parse a document and extract Markdown using MarkItDown.
+    
+    This is an alternate implementation of document parsing that uses the
+    `markitdown` library instead of Docling. It is intended for experiments
+    and for generating Markdown versions of attachments without changing the
+    existing Docling-based pipeline.
+    
+    Args:
+        file_path: Path to the document file (PDF, DOCX, etc.).
+        converter: Optional MarkItDown instance to reuse. If None, a global
+            instance will be created via get_markitdown_converter().
+    
+    Returns:
+        Extracted Markdown text if successful, otherwise None.
+    """
+    try:
+        logger.info(f"[MarkItDown] Parsing document: {file_path.name}")
+
+        # Use provided converter or get the global MarkItDown instance
+        if converter is None:
+            converter = get_markitdown_converter()
+
+        # MarkItDown API: convert returns an object with text_content
+        result = converter.convert(str(file_path))
+
+        text_content = getattr(result, "text_content", None)
+        if not text_content and hasattr(result, "markdown"):
+            text_content = getattr(result, "markdown")
+
+        if text_content:
+            logger.info(
+                f"[MarkItDown] Successfully parsed {file_path.name}, "
+                f"extracted {len(text_content)} characters"
+            )
+            return text_content
+
+        logger.warning(f"[MarkItDown] No text content extracted from {file_path.name}")
+        return None
+
+    except ImportError:
+        # Already logged in get_markitdown_converter
+        raise
+    except Exception as e:
+        logger.error(f"[MarkItDown] Error parsing document {file_path.name}: {str(e)}")
         return None
 
 

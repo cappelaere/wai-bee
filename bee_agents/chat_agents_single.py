@@ -19,6 +19,9 @@ from beeai_framework.backend import ChatModel  # type: ignore
 from beeai_framework.agents.requirement import RequirementAgent  # type: ignore
 from beeai_framework.tools.openapi import OpenAPITool  # type: ignore
 from beeai_framework.memory import UnconstrainedMemory
+from beeai_framework.cache import SlidingCache
+from beeai_framework.errors import FrameworkError
+from beeai_framework.backend import ChatModelParameters, UserMessage
 
 from .logging_config import setup_logging
 
@@ -60,6 +63,7 @@ class SingleAgentHandler:
             raise
         
         # Create tools from OpenAPI schema
+        # TODO Should we add ThinkTool() to the tools to reason
         tools = OpenAPITool.from_schema(open_api_schema)
         logger.info(f"Single agent: Loaded {len(tools)} OpenAPI tools")
         
@@ -108,9 +112,12 @@ When calling API endpoints, always use the scholarship parameter provided in the
         logger.info("Initializing single-agent system...")
         logger.info(f"Chat model: {self.chat_model}")
         
+        
         # Initialize model
         llm = ChatModel.from_name(self.chat_model)
-        
+        # Caching does not seem to work for RequirementAgent 
+        #llm.config(parameters=ChatModelParameters(max_tokens=1000), cache=SlidingCache(size=50))
+
         # Initialize the single agent with all tools
         self.agent = await self.initialize_agent(llm)
         

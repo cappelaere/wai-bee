@@ -8,7 +8,7 @@ The number of applicants can be customized via command-line arguments.
 
 Usage:
     # Process Delaney Wings with default 20 applicants
-    python examples/process_applicants.py
+    python examples/process_applicants.py Delaney_Wings --max-applicants 20
     
     # Process Evans Wings with default 20 applicants
     python examples/process_applicants.py Evans_Wings
@@ -106,7 +106,7 @@ Available scholarships:
         max_applicants=args.max_applicants,
         skip_stages=[],         # Process all stages
         parallel=True,          # Use parallel processing for speed
-        stop_on_error=True      # Continue processing even if an applicant fails
+        stop_on_error=False      # Continue processing even if an applicant fails
     )
     
     # Display results

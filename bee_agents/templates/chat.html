@@ -6,6 +6,8 @@
     <title>Scholarship Management Application</title>
     <link rel="icon" type="image/x-icon" href="/favicon.ico">
     <link rel="stylesheet" href="/static/chat.css">
+    <!-- Bootstrap Icons for message action buttons -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css">
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
 </head>
 <body>
@@ -348,12 +350,29 @@
             const contentDiv = document.createElement('div');
             contentDiv.className = 'message-content';
             contentDiv.innerHTML = content;
-            
+
+            if (type === 'agent') {
+                const actionsDiv = document.createElement('div');
+                actionsDiv.className = 'message-actions';
+                actionsDiv.innerHTML = `
+                    <button class="msg-action-btn msg-copy-btn" title="Copy">
+                        <i class="bi bi-copy"></i>
+                    </button>
+                    <button class="msg-action-btn msg-like-btn" title="Helpful">
+                        <i class="bi bi-hand-thumbs-up"></i>
+                    </button>
+                    <button class="msg-action-btn msg-dislike-btn" title="Not helpful">
+                        <i class="bi bi-hand-thumbs-down"></i>
+                    </button>
+                `;
+                contentDiv.appendChild(actionsDiv);
+            }
+
             messageDiv.appendChild(contentDiv);
+
             chatMessages.appendChild(messageDiv);
             chatMessages.scrollTop = chatMessages.scrollHeight;
         }
-        
         function addUserMessage(text) {
             addMessage(escapeHtml(text), 'user');
         }
@@ -441,14 +460,41 @@
             exampleQueries.style.display = 'none';
         }
         
-        // Handle example query clicks
+        // Handle example query clicks and message action buttons
         document.addEventListener('click', (e) => {
-            if (e.target.classList.contains('example-query')) {
-                const query = e.target.getAttribute('data-query');
+            const target = e.target;
+
+            if (target.classList.contains('example-query')) {
+                const query = target.getAttribute('data-query');
                 if (query && ws && ws.readyState === WebSocket.OPEN) {
                     messageInput.value = query;
                     chatForm.dispatchEvent(new Event('submit'));
                 }
+                return;
+            }
+
+            // Message action buttons (copy, like, dislike) - use closest() so clicks
+            // on inner <i> icons still trigger the button behavior.
+            const copyBtn = target.closest('.msg-copy-btn');
+            const likeBtn = target.closest('.msg-like-btn');
+            const dislikeBtn = target.closest('.msg-dislike-btn');
+
+            if (copyBtn) {
+                const msg = copyBtn.closest('.message')?.querySelector('.message-content');
+                if (msg && navigator.clipboard && navigator.clipboard.writeText) {
+                    // Copy only the visible text of the message bubble
+                    navigator.clipboard.writeText(msg.innerText).catch((err) => {
+                        console.error('Copy failed:', err);
+                    });
+                }
+            } else if (likeBtn) {
+                const msg = likeBtn.closest('.message');
+                console.log('Thumbs up for message', msg);
+                // TODO: send feedback to backend if desired
+            } else if (dislikeBtn) {
+                const msg = dislikeBtn.closest('.message');
+                console.log('Thumbs down for message', msg);
+                // TODO: send feedback to backend if desired
             }
         });
         

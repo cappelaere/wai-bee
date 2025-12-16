@@ -61,6 +61,21 @@ from opentelemetry.sdk import trace as trace_sdk
 from opentelemetry.sdk.resources import Resource
 from opentelemetry.sdk.trace.export import SimpleSpanProcessor
 
+from beeai_framework.parsers.line_prefix import LinePrefixParser, LinePrefixParserNode
+from beeai_framework.backend import (
+    AnyMessage,
+    ChatModel,
+    ChatModelNewTokenEvent
+)
+from beeai_framework.emitter import EventMeta
+from beeai_framework.parsers.field import ParserField
+from beeai_framework.parsers.line_prefix import LinePrefixParser, LinePrefixParserNode
+from beeai_framework.cache import UnconstrainedCache, SlidingCache
+
+#cache: UnconstrainedCache[int] = UnconstrainedCache()
+cache: SlidingCache[int] = SlidingCache(
+    size=100  # (required) number of items that can be live in the cache at a single moment
+)
 
 # Configure logging
 logger = setup_logging('chat')
@@ -828,35 +843,28 @@ If the user asks about other scholarships, politely inform them they don't have 
             scholarship_context.strip(),
             f"User Query: {user_message.strip()}"
         ])
-        # Log message preparation (detailed logging already done above)
-        logger.debug(
-            "Message contextualized",
-            extra={
-                "query_length": len(user_message),
-                "context_length": len(scholarship_context),
-                "total_length": len(contextualized_message)
-            }
-        )
 
         try:
-            agent_run = agent.run(contextualized_message)
+            hash_key=str(hash(contextualized_message))
+            cached_response = await cache.get(hash_key)
+            if cached_response:
+                logging.info(f"Cached response found for {hash_key}")
+                await websocket.send_json({
+                    "type": "response",
+                    "message": cached_response,
+                    "agent": "cache",  # For debugging/transparency
+                    "execution_time": 0
+                })
+                return
             
-            # Add event logging
-            agent_run = agent_run.observe(
-                lambda emitter: emitter.on(
-                    "update",
-                    lambda data, event: logger.info(
-                        f"Event {event.path} triggered by {type(event.creator).__name__}",
-                        extra={"username": username, "event_path": event.path}
-                    )
-                )
-            )
+            agent_run = agent.run(contextualized_message)
             
             # Execute with timeout
             response = await asyncio.wait_for(
                 agent_run,
-                timeout=300.0  # 5 minute timeout
+                timeout=60.0  # 1 minute timeout
             )
+ 
         except asyncio.TimeoutError:
             execution_time = time.time() - start_time
             logger.error(
@@ -879,7 +887,9 @@ If the user asks about other scholarships, politely inform them they don't have 
             raise AttributeError("Response message missing 'text' attribute")
         
         agent_response = response.last_message.text
-        
+        await cache.set(hash_key, agent_response)
+        logging.info(f"Caching response for {hash_key}")
+
         if not agent_response or not agent_response.strip():
             logger.warning(f"Agent returned empty text for user {username}", extra=log_context)
             agent_response = "I apologize, but I couldn't generate a response. Please try rephrasing your question."
@@ -890,21 +900,14 @@ If the user asks about other scholarships, politely inform them they don't have 
         # Metrics: Calculate and log execution time
         execution_time = time.time() - start_time
         logger.info(
-            f"Response from {handling_agent} for {username}",
-            extra={
-                **log_context,
-                "execution_time": execution_time,
-                "response_length": len(agent_response),
-                "handling_agent": handling_agent,
-                "status": "success"
-            }
-        )
+            f"Response from {handling_agent} for {username} time: {execution_time}")
 
+        # Send a single response back to the client (no streaming at Bee level).
         await websocket.send_json({
             "type": "response",
             "message": agent_response,
             "agent": handling_agent,  # For debugging/transparency
-            "execution_time": round(execution_time, 2)  # Include timing for client-side metrics
+            "execution_time": round(execution_time, 2),  # Include timing for client-side metrics
         })
         
     except asyncio.TimeoutError:
@@ -915,21 +918,14 @@ If the user asks about other scholarships, politely inform them they don't have 
         })
     except (AttributeError, RuntimeError) as e:
         execution_time = time.time() - start_time
-        logger.error(
-            f"Invalid response structure for {username}: {e}",
-            extra={**log_context, "execution_time": execution_time, "status": "error", "error_type": type(e).__name__}
-        )
+        logger.error( f"Invalid response structure for {username}: {e}" )
         await websocket.send_json({
             "type": "error",
             "message": "An error occurred processing your request. Please try again."
         })
     except Exception as e:
         execution_time = time.time() - start_time
-        logger.error(
-            f"Error processing message for {username}: {e}",
-            extra={**log_context, "execution_time": execution_time, "status": "error", "error_type": type(e).__name__},
-            exc_info=True
-        )
+        logger.error(f"Error processing message for {username}: {e}")
         await websocket.send_json({
             "type": "error",
             "message": str(e)
