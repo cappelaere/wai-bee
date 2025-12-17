@@ -9,7 +9,7 @@ License: MIT
 import logging
 from pathlib import Path
 from typing import Optional
-from fastapi import APIRouter, HTTPException, Cookie
+from fastapi import APIRouter, HTTPException, Cookie, Request, Body
 from fastapi.responses import HTMLResponse
 from fastapi_cache.decorator import cache
 from ..auth import verify_token_with_context, active_tokens
@@ -20,9 +20,11 @@ logger = logging.getLogger(__name__)
 
 
 @router.get("/select-scholarship", response_class=HTMLResponse, operation_id="get_select_page")
-@cache(expire=3600)  # Cache for 60 minutes
-async def get_scholarship_selection_page():
-    """Serve the scholarship selection page."""
+async def get_scholarship_selection_page(request: Request):
+    """Serve the scholarship selection page.
+    
+    Note: HTML responses are not cached as they are static files.
+    """
     template_path = Path(__file__).parent.parent / "templates" / "select_scholarship.html"
     
     try:
@@ -36,7 +38,8 @@ async def get_scholarship_selection_page():
 
 @router.post("/api/user/select-scholarship", operation_id="select_scholarship")
 async def select_scholarship(
-    request: dict,
+    request: Request,
+    payload: dict = Body(...),
     auth_token: Optional[str] = Cookie(None)
 ):
     """Store the user's selected scholarship in their session."""
@@ -47,7 +50,7 @@ async def select_scholarship(
     if not token_data:
         raise HTTPException(status_code=401, detail="Invalid or expired token")
     
-    scholarship = request.get("scholarship")
+    scholarship = payload.get("scholarship")
     if not scholarship:
         raise HTTPException(status_code=400, detail="Scholarship not provided")
     
@@ -71,7 +74,10 @@ async def select_scholarship(
 
 
 @router.get("/api/user/scholarships", operation_id="get_scholarships")
-async def get_user_scholarships(auth_token: Optional[str] = Cookie(None)):
+async def get_user_scholarships(
+    request: Request,
+    auth_token: Optional[str] = Cookie(None)
+):
     """Get list of scholarships accessible to the current user."""
     if not auth_token:
         raise HTTPException(status_code=401, detail="Not authenticated")
@@ -80,13 +86,29 @@ async def get_user_scholarships(auth_token: Optional[str] = Cookie(None)):
     if not token_data:
         raise HTTPException(status_code=401, detail="Invalid or expired token")
     
-    middleware = ScholarshipAccessMiddleware(token_data)
-    scholarships = middleware.get_accessible_scholarships()
-    
-    return {
-        "username": token_data["username"],
-        "role": token_data["role"],
-        "scholarships": scholarships
-    }
+    try:
+        middleware = ScholarshipAccessMiddleware(token_data)
+        scholarships = middleware.get_accessible_scholarships()
+        
+        # Return just the scholarships array for frontend compatibility
+        return scholarships
+    except FileNotFoundError as e:
+        logger.error(f"Configuration file not found: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail="Scholarship configuration not found. Please contact administrator."
+        )
+    except ValueError as e:
+        logger.error(f"Invalid configuration: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail="Invalid scholarship configuration. Please contact administrator."
+        )
+    except Exception as e:
+        logger.error(f"Error loading scholarships: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=500,
+            detail="Failed to load scholarships. Please try again or contact administrator."
+        )
 
 # Made with Bob

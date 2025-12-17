@@ -47,19 +47,19 @@ async def get_login_page(request: Request):
 
 @router.post("/login", response_model=LoginResponse, operation_id="login")
 @limiter.limit("10/minute")
-async def login(http_request: Request, request: LoginRequest):
+async def login(request: Request, credentials: LoginRequest):
     """Handle login requests with scholarship context.
     
     Rate limit: 10 login attempts per minute per IP address to prevent brute force attacks.
     """
-    if not verify_credentials(request.username, request.password):
+    if not verify_credentials(credentials.username, credentials.password):
         raise HTTPException(status_code=401, detail="Invalid username or password")
     
-    token_response = create_token_with_context(request.username)
+    token_response = create_token_with_context(credentials.username)
     logger.info(
-        f"User logged in: {request.username}",
+        f"User logged in: {credentials.username}",
         extra={
-            "username": request.username,
+            "username": credentials.username,
             "role": token_response["role"],
             "scholarships": token_response["scholarships"]
         }

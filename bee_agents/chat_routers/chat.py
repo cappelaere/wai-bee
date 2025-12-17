@@ -64,7 +64,7 @@ async def get_about_page(request: Request):
 
 
 @router.get("/examples", response_class=HTMLResponse, operation_id="get_examples_page")
-async def get_examples_page():
+async def get_examples_page(request: Request):
     """Serve the examples page."""
     template_path = Path(__file__).parent.parent / "templates" / "examples.html"
     
@@ -81,7 +81,7 @@ async def get_examples_page():
 
 
 @router.get("/health", operation_id="chat_health_check")
-async def health_check():
+async def health_check(request: Request):
     """Health check endpoint for monitoring."""
     return {
         "status": "healthy",
@@ -90,7 +90,7 @@ async def health_check():
 
 
 @router.get("/favicon.ico", operation_id="get_favicon")
-async def favicon():
+async def favicon(request: Request):
     """Serve the favicon."""
     favicon_path = Path(__file__).parent.parent / "static" / "favicon.ico"
     if favicon_path.exists():

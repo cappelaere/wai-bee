@@ -65,7 +65,8 @@ from .chat_agents_single import SingleAgentHandler
 from .chat_routers import (
     auth_router,
     scholarship_router,
-    chat_router
+    chat_router,
+    admin_router
 )
 
 # OpenInference BeeAI instrumentation with OpenTelemetry
@@ -195,15 +196,21 @@ async def initialize_agents():
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Lifespan context manager for startup and shutdown events."""
+    global agent_handler
+    
     # Startup
     # Initialize observability BEFORE any BeeAI code runs
     setup_observability()
     await initialize_agents()
     
+    # Store agent_handler in app state for access by routers
+    app.state.agent_handler = agent_handler
+    
     # Initialize Redis cache
     redis_url = os.environ.get("REDIS_URL", "redis://localhost:6379")
     try:
-        redis = aioredis.from_url(redis_url, encoding="utf8", decode_responses=True)
+        # Note: decode_responses must be False for fastapi-cache2 to work correctly
+        redis = aioredis.from_url(redis_url, encoding="utf8", decode_responses=False)
         FastAPICache.init(RedisBackend(redis), prefix="fastapi-cache")
         logger.info(f"Redis cache initialized at {redis_url}")
     except Exception as e:
@@ -224,7 +231,6 @@ app = FastAPI(
 # Add rate limiting
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
-)
 
 
 # Mount static files directory
@@ -237,27 +243,9 @@ if static_dir.exists():
 app.include_router(auth_router)
 app.include_router(scholarship_router)
 app.include_router(chat_router)
+app.include_router(admin_router)
 
 logger.info("Modular chat routers integrated successfully")
-
-
-# Note: favicon and other endpoints are now in chat_router
-# Remove duplicate endpoints below if they exist
-
-
-# REMOVED: Duplicate endpoints - now handled by bee_agents/chat_routers/
-# The following endpoints are defined in the chat routers:
-# - GET /login (auth.py)
-# - POST /login (auth.py)
-# - POST /logout (auth.py)
-# - GET /select-scholarship (scholarship.py)
-# - POST /api/user/select-scholarship (scholarship.py)
-# - GET /about (chat.py)
-# - GET /examples (chat.py)
-# - GET /admin/config (chat.py)
-
-# Duplicate removed - see comment above
-
 
 def get_scholarship_config_path(scholarship_name: str) -> Path:
     """Get path to canonical config.yml for a scholarship."""
@@ -292,303 +280,6 @@ def require_admin(auth_token: Optional[str] = Cookie(None)) -> dict:
         raise HTTPException(status_code=403, detail="Admin access required")
     return token_data
 
-
-@app.get("/admin/{scholarship}/weights")
-async def get_scholarship_weights(
-    scholarship: str,
-    _: dict = Depends(require_admin),
-):
-    """Get current scoring weights for a scholarship from canonical config."""
-    config = load_scholarship_config(scholarship)
-    agents_cfg = config.get("agents", {})
-    scoring_cfg = config.get("scoring", {})
-    scoring_agents = scoring_cfg.get("scoring_agents", [])
-
-    weights = {}
-    total = 0.0
-    for name, agent in agents_cfg.items():
-        weight = agent.get("weight")
-        if weight is not None:
-            weights[name] = {
-                "weight": weight,
-                "description": agent.get("description", ""),
-                "enabled": agent.get("enabled", True),
-                "required": agent.get("required", False),
-            }
-            total += weight
-
-    return {
-        "scholarship": scholarship,
-        "weights": weights,
-        "total_weight": round(total, 4),
-        "scoring_agents": scoring_agents,
-    }
-
-
-@app.put("/admin/{scholarship}/weights")
-async def update_scholarship_weights(
-    scholarship: str,
-    payload: Dict[str, Any],
-    _: dict = Depends(require_admin),
-):
-    """Update scoring weights in canonical config and regenerate artifacts."""
-    config = load_scholarship_config(scholarship)
-    agents_cfg = config.get("agents", {})
-
-    new_weights = payload.get("weights", {})
-    if not isinstance(new_weights, dict):
-        raise HTTPException(status_code=400, detail="weights must be an object")
-
-    total = 0.0
-    for name, w in new_weights.items():
-        if name not in agents_cfg:
-            raise HTTPException(status_code=400, detail=f"Unknown agent: {name}")
-        try:
-            weight_val = float(w.get("weight"))
-        except Exception:
-            raise HTTPException(status_code=400, detail=f"Invalid weight for agent {name}")
-        agents_cfg[name]["weight"] = weight_val
-        total += weight_val
-
-    if abs(total - 1.0) > 0.001:
-        raise HTTPException(
-            status_code=400,
-            detail=f"Weights must sum to 1.0, got {total}",
-        )
-
-    config["agents"] = agents_cfg
-
-    # Persist back to config.yml with simple backup
-    config_path = get_scholarship_config_path(scholarship)
-    backup_path = config_path.with_suffix(".backup")
-    try:
-        import shutil
-        import yaml
-
-        if config_path.exists():
-            shutil.copy2(config_path, backup_path)
-        with open(config_path, "w", encoding="utf-8") as f:
-            yaml.safe_dump(config, f, sort_keys=False, allow_unicode=True)
-    except Exception as e:
-        logger.error(f"Failed to write updated config for {scholarship}: {e}")
-        raise HTTPException(status_code=500, detail="Failed to save updated weights")
-
-    # Regenerate artifacts on disk
-    try:
-        from scripts.generate_scholarship_artifacts import main as generate_main
-
-        root = Path(__file__).resolve().parents[1]
-        generate_main([str(root / "scripts/generate_scholarship_artifacts.py"), scholarship])
-    except Exception as e:
-        logger.error(f"Failed to regenerate artifacts for {scholarship}: {e}")
-        raise HTTPException(status_code=500, detail="Weights saved but artifact regeneration failed")
-
-    return {"status": "ok", "total_weight": round(total, 4)}
-
-
-@app.get("/admin/{scholarship}/criteria/{agent_name}")
-async def get_agent_criteria(
-    scholarship: str,
-    agent_name: str,
-    _: dict = Depends(require_admin),
-):
-    """Get current criteria text for a specific agent from canonical config."""
-    config = load_scholarship_config(scholarship)
-    agents_cfg = config.get("agents", {})
-    criteria_text = config.get("criteria_text", {})
-
-    if agent_name not in agents_cfg:
-        raise HTTPException(status_code=404, detail=f"Unknown agent: {agent_name}")
-
-    crit_ref = agents_cfg[agent_name].get("criteria_ref")
-    crit_value = criteria_text.get(crit_ref) if crit_ref else None
-
-    return {
-        "scholarship": scholarship,
-        "agent": agent_name,
-        "criteria_ref": crit_ref,
-        "criteria_text": crit_value,
-    }
-
-
-@app.put("/admin/{scholarship}/criteria/{agent_name}")
-async def update_agent_criteria(
-    scholarship: str,
-    agent_name: str,
-    payload: Dict[str, Any],
-    _: dict = Depends(require_admin),
-):
-    """Update criteria text for a specific agent and regenerate artifacts."""
-    config = load_scholarship_config(scholarship)
-    agents_cfg = config.get("agents", {})
-    criteria_text = config.get("criteria_text", {})
-
-    if agent_name not in agents_cfg:
-        raise HTTPException(status_code=404, detail=f"Unknown agent: {agent_name}")
-
-    crit_ref = agents_cfg[agent_name].get("criteria_ref")
-    if not crit_ref:
-        raise HTTPException(status_code=400, detail=f"Agent {agent_name} does not use criteria_ref")
-
-    new_text = payload.get("criteria_text")
-    if not isinstance(new_text, str) or not new_text.strip():
-        raise HTTPException(status_code=400, detail="criteria_text must be a non-empty string")
-
-    if len(new_text) < 100:
-        raise HTTPException(status_code=400, detail="criteria_text is too short (< 100 characters)")
-
-    criteria_text[crit_ref] = new_text
-    config["criteria_text"] = criteria_text
-
-    # Persist back to config.yml with simple backup
-    config_path = get_scholarship_config_path(scholarship)
-    backup_path = config_path.with_suffix(".backup")
-    try:
-        import shutil
-        import yaml
-
-        if config_path.exists():
-            shutil.copy2(config_path, backup_path)
-        with open(config_path, "w", encoding="utf-8") as f:
-            yaml.safe_dump(config, f, sort_keys=False, allow_unicode=True)
-    except Exception as e:
-        logger.error(f"Failed to write updated criteria for {scholarship}: {e}")
-        raise HTTPException(status_code=500, detail="Failed to save updated criteria")
-
-    # Regenerate artifacts (criteria/*.txt, etc.)
-    try:
-        from scripts.generate_scholarship_artifacts import main as generate_main
-
-        root = Path(__file__).resolve().parents[1]
-        generate_main([str(root / "scripts/generate_scholarship_artifacts.py"), scholarship])
-    except Exception as e:
-        logger.error(f"Failed to regenerate artifacts for {scholarship}: {e}")
-        raise HTTPException(status_code=500, detail="Criteria saved but artifact regeneration failed")
-
-    return {"status": "ok", "agent": agent_name}
-
-
-@app.post("/admin/{scholarship}/criteria/{agent_name}/regenerate")
-async def regenerate_agent_criteria_with_llm(
-    scholarship: str,
-    agent_name: str,
-    payload: Dict[str, Any],
-    _: dict = Depends(require_admin),
-):
-    """Generate a new criteria draft for an agent using an LLM."""
-    from beeai_framework.backend.chat import ChatModel  # type: ignore
-    from beeai_framework.backend.message import UserMessage  # type: ignore
-
-    config = load_scholarship_config(scholarship)
-    agents_cfg = config.get("agents", {})
-    criteria_text = config.get("criteria_text", {})
-
-    if agent_name not in agents_cfg:
-        raise HTTPException(status_code=404, detail=f"Unknown agent: {agent_name}")
-
-    agent_cfg = agents_cfg[agent_name]
-    crit_ref = agent_cfg.get("criteria_ref")
-    if not crit_ref:
-        raise HTTPException(status_code=400, detail=f"Agent {agent_name} does not use criteria_ref")
-
-    current_text = criteria_text.get(crit_ref, "")
-    base_description = payload.get("base_description") or agent_cfg.get("description", "")
-    target_model = payload.get("target_model") or os.getenv("PRIMARY_MODEL", "ollama:llama3.2:1b")
-
-    system_prompt = (
-        "You are an expert in designing scoring rubrics for scholarship application agents.\n"
-        "Generate clear, structured evaluation criteria text suitable to be used as a prompt\n"
-        "for an LLM that will score this agent. The output should be plain text with headings\n"
-        "and bullet points, not JSON. Do not include instructions about JSON schemas.\n"
-    )
-
-    user_prompt_parts = [
-        f"Scholarship ID: {scholarship}",
-        f"Agent name: {agent_name}",
-        f"Agent description: {base_description}",
-        f"Target model identifier: {target_model}",
-    ]
-    if current_text:
-        user_prompt_parts.append(
-            "Current criteria text (improve and refine, but keep intent compatible):\n"
-            f"{current_text}"
-        )
-    else:
-        user_prompt_parts.append("No existing criteria text; create a new rubric from scratch.")
-
-    user_prompt = "\n\n".join(user_prompt_parts)
-
-    try:
-        chat_model = ChatModel.from_name(target_model)
-        messages = [
-            UserMessage(system_prompt),
-            UserMessage(user_prompt),
-        ]
-        result = await chat_model.run(messages)
-        new_text = result.last_message.text if result and result.last_message else ""
-    except Exception as e:
-        logger.error(f"Failed to regenerate criteria with LLM for {scholarship}/{agent_name}: {e}")
-        raise HTTPException(status_code=500, detail="LLM criteria generation failed")
-
-    if not new_text or len(new_text) < 100:
-        raise HTTPException(status_code=500, detail="Generated criteria text is too short or empty")
-
-    return {
-        "scholarship": scholarship,
-        "agent": agent_name,
-        "criteria_ref": crit_ref,
-        "current_criteria_text": current_text,
-        "proposed_criteria_text": new_text,
-    }
-
-
-@app.post("/admin/{scholarship}/pipeline/run")
-async def trigger_pipeline_rerun(
-    scholarship: str,
-    payload: Dict[str, Any],
-    admin: dict = Depends(require_admin),
-):
-    """Stub endpoint to trigger a scholarship processing pipeline rerun.
-
-    For now this only validates input and logs the request; it does not
-    actually invoke the full workflow.
-    """
-    max_applicants = payload.get("max_applicants")
-    stop_on_error = bool(payload.get("stop_on_error", False))
-    skip_processed = bool(payload.get("skip_processed", True))
-
-    if max_applicants is not None:
-        try:
-            max_int = int(max_applicants)
-        except (TypeError, ValueError):
-            raise HTTPException(status_code=400, detail="max_applicants must be an integer")
-        if max_int <= 0:
-            raise HTTPException(status_code=400, detail="max_applicants must be positive")
-        max_applicants = max_int
-
-    logger.info(
-        "Pipeline rerun requested (stub)",
-        extra={
-            "scholarship": scholarship,
-            "max_applicants": max_applicants,
-            "stop_on_error": stop_on_error,
-            "skip_processed": skip_processed,
-            "username": admin.get("username"),
-        },
-    )
-
-    # TODO: Wire this to the actual scholarship_workflow runner.
-    return {
-        "status": "stub",
-        "detail": "Pipeline trigger accepted (stub only; workflow not yet wired).",
-        "scholarship": scholarship,
-        "max_applicants": max_applicants,
-        "stop_on_error": stop_on_error,
-        "skip_processed": skip_processed,
-    }
-
-
-# REMOVED: Duplicate endpoint - now handled by bee_agents/chat_routers/chat.py
 
 
 def extract_auth_token_from_cookies(cookie_header: str) -> Optional[str]:
@@ -817,7 +508,10 @@ If the user asks about other scholarships, politely inform them they don't have 
 
 
 @app.get("/api/user/profile")
-async def get_user_profile(auth_token: Optional[str] = Cookie(None)):
+async def get_user_profile(
+    request: Request,
+    auth_token: Optional[str] = Cookie(None)
+):
     """Get current user's profile information."""
     token_data = verify_token_with_context(auth_token)
     if not token_data:

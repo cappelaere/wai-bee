@@ -12,18 +12,25 @@ License: MIT
 import os
 import json
 import logging
+import asyncio
+import time
 from pathlib import Path
 from typing import Optional
 
+from fastapi import WebSocket
 from beeai_framework.backend import ChatModel  # type: ignore
 from beeai_framework.agents.requirement import RequirementAgent  # type: ignore
 from beeai_framework.tools.openapi import OpenAPITool  # type: ignore
 from beeai_framework.memory import UnconstrainedMemory
 from beeai_framework.tools.handoff import HandoffTool
+from beeai_framework.cache import SlidingCache
 
 from .logging_config import setup_logging
 
 logger = setup_logging('chat_agents')
+
+# Shared cache for response caching across all instances
+response_cache: SlidingCache[str] = SlidingCache(size=100)
 
 
 class MultiAgentOrchestrator:
@@ -213,5 +220,232 @@ class MultiAgentOrchestrator:
             "chat_model": self.chat_model,
             "orchestrator_model": self.orchestrator_model
         }
+    
+    def _extract_auth_token_from_cookies(self, cookie_header: str) -> Optional[str]:
+        """Extract auth_token from cookie header string.
+        
+        Args:
+            cookie_header: The cookie header string from the request
+            
+        Returns:
+            The auth token if found, None otherwise
+        """
+        for cookie in cookie_header.split("; "):
+            if cookie.startswith("auth_token="):
+                return cookie.split("=", 1)[1]
+        return None
+    
+    async def _authenticate_websocket(self, websocket: WebSocket) -> Optional[dict]:
+        """Authenticate WebSocket connection and return full token data.
+        
+        Args:
+            websocket: The WebSocket connection to authenticate
+            
+        Returns:
+            Token data dictionary if authentication successful, None otherwise
+        """
+        from .auth import verify_token_with_context
+        
+        cookie_header = websocket.headers.get("cookie", "")
+        auth_token = self._extract_auth_token_from_cookies(cookie_header)
+        token_data = verify_token_with_context(auth_token)
+        
+        if not token_data:
+            await websocket.send_json({
+                "type": "error",
+                "content": "Unauthorized - please log in"
+            })
+            return None
+        
+        logger.info(
+            f"WebSocket authenticated: {token_data['username']}",
+            extra={
+                "username": token_data["username"],
+                "role": token_data["role"],
+                "scholarships": token_data["scholarships"]
+            }
+        )
+        
+        return token_data
+    
+    async def process_message(self, websocket: WebSocket, message_data: dict) -> None:
+        """Process a chat message with scholarship access control.
+        
+        Args:
+            websocket: The WebSocket connection
+            message_data: The parsed message data from the client
+        """
+        # Authenticate the websocket connection
+        token_data = await self._authenticate_websocket(websocket)
+        if not token_data:
+            return
+        
+        if message_data.get("type") != "message":
+            return
+        
+        user_message = message_data.get("content", "")
+        username = token_data["username"]
+        
+        # Import middleware here to avoid circular dependencies
+        from .middleware import ScholarshipAccessMiddleware
+        
+        # Create access control middleware
+        access_control = ScholarshipAccessMiddleware(token_data)
+        
+        # Get accessible scholarships for context
+        accessible_scholarships = access_control.get_accessible_scholarships()
+        scholarship_names = [s["name"] for s in accessible_scholarships]
+        
+        # Get the selected scholarship from token (set during scholarship selection)
+        selected_scholarship = token_data.get("selected_scholarship")
+        
+        # Fallback logic if no scholarship selected yet
+        if not selected_scholarship:
+            scholarship_ids = token_data.get("scholarships", [])
+            if scholarship_ids and scholarship_ids[0] != "*":
+                selected_scholarship = scholarship_ids[0]
+            else:
+                selected_scholarship = "Delaney_Wings"  # Default fallback
+        
+        # Verify user has access to the selected scholarship
+        if not access_control.can_access_scholarship(selected_scholarship):
+            await websocket.send_json({
+                "type": "error",
+                "content": f"Access denied to scholarship: {selected_scholarship}. Please select a valid scholarship."
+            })
+            return
+        
+        # Add scholarship context to agent instructions
+        scholarship_context = f"""
+User Context:
+- Username: {token_data['username']}
+- Role: {token_data['role']}
+- Scholarship: {selected_scholarship}
+- Permissions: {', '.join(token_data['permissions'])}
+
+IMPORTANT: When calling API endpoints, you MUST use the scholarship parameter with the value: "{selected_scholarship}"
+All API calls require a 'scholarship' query parameter. Use "{selected_scholarship}" for all requests.
+
+You can only access and provide information about the scholarships listed above.
+If the user asks about other scholarships, politely inform them they don't have access.
+"""
+        
+        # Structured logging with context
+        log_context = {
+            "username": username,
+            "role": token_data["role"],
+            "selected_scholarship": selected_scholarship,
+            "message_length": len(user_message),
+            "timestamp": time.time()
+        }
+        logger.info(
+            "Processing chat message",
+            extra=log_context
+        )
+        
+        # Metrics: Track execution time
+        start_time = time.time()
+        
+        try:
+            if self.orchestrator_agent is None:
+                raise RuntimeError("Orchestrator agent not initialized")
+            
+            # Validate inputs before processing
+            if not user_message or not user_message.strip():
+                raise ValueError("User message cannot be empty")
+
+            # Build contextualized message with clear separation
+            contextualized_message = "\n\n".join([
+                scholarship_context.strip(),
+                f"User Query: {user_message.strip()}"
+            ])
+
+            try:
+                # Check cache first using the shared module-level cache
+                hash_key = str(hash(contextualized_message))
+                cached_response = await response_cache.get(hash_key)
+                if cached_response:
+                    logger.info(f"Cached response found for {hash_key}")
+                    await websocket.send_json({
+                        "type": "response",
+                        "message": cached_response,
+                        "agent": "cache",
+                        "execution_time": 0
+                    })
+                    return
+                
+                agent_run = self.orchestrator_agent.run(contextualized_message)
+                
+                # Execute with timeout
+                response = await asyncio.wait_for(
+                    agent_run,
+                    timeout=60.0  # 1 minute timeout
+                )
+     
+            except asyncio.TimeoutError:
+                execution_time = time.time() - start_time
+                logger.error(
+                    f"Agent execution timeout for user {username}",
+                    extra={**log_context, "execution_time": execution_time, "status": "timeout"}
+                )
+                raise RuntimeError("Request timed out. Please try again with a simpler query.")
+            
+            # Response validation: Check if response structure is valid
+            if not response:
+                raise RuntimeError("Agent returned empty response")
+            
+            if not hasattr(response, 'last_message'):
+                raise AttributeError("Response missing 'last_message' attribute")
+            
+            if not response.last_message:
+                raise RuntimeError("Agent returned no messages")
+            
+            if not hasattr(response.last_message, 'text'):
+                raise AttributeError("Response message missing 'text' attribute")
+            
+            agent_response = response.last_message.text
+            await response_cache.set(hash_key, agent_response)
+            logger.info(f"Caching response for {hash_key}")
+
+            if not agent_response or not agent_response.strip():
+                logger.warning(f"Agent returned empty text for user {username}", extra=log_context)
+                agent_response = "I apologize, but I couldn't generate a response. Please try rephrasing your question."
+            
+            # Optional: Include which agent handled the request for transparency
+            handling_agent = getattr(response, 'agent_name', 'orchestrator')
+            
+            # Metrics: Calculate and log execution time
+            execution_time = time.time() - start_time
+            logger.info(
+                f"Response from {handling_agent} for {username} time: {execution_time}")
+
+            # Send a single response back to the client
+            await websocket.send_json({
+                "type": "response",
+                "message": agent_response,
+                "agent": handling_agent,
+                "execution_time": round(execution_time, 2),
+            })
+            
+        except asyncio.TimeoutError:
+            # Already logged above, just send error to client
+            await websocket.send_json({
+                "type": "error",
+                "message": "Request timed out. Please try again with a simpler query."
+            })
+        except (AttributeError, RuntimeError) as e:
+            execution_time = time.time() - start_time
+            logger.error(f"Invalid response structure for {username}: {e}")
+            await websocket.send_json({
+                "type": "error",
+                "message": "An error occurred processing your request. Please try again."
+            })
+        except Exception as e:
+            execution_time = time.time() - start_time
+            logger.error(f"Error processing message for {username}: {e}")
+            await websocket.send_json({
+                "type": "error",
+                "message": str(e)
+            })
 
 # Made with Bob

@@ -108,7 +108,8 @@ async def lifespan(app: FastAPI):
     # Initialize Redis cache
     redis_url = os.environ.get("REDIS_URL", "redis://localhost:6379")
     try:
-        redis = aioredis.from_url(redis_url, encoding="utf8", decode_responses=True)
+        # Note: decode_responses must be False for fastapi-cache2 to work correctly
+        redis = aioredis.from_url(redis_url, encoding="utf8", decode_responses=False)
         FastAPICache.init(RedisBackend(redis), prefix="fastapi-cache")
         logger.info(f"Redis cache initialized at {redis_url}")
     except Exception as e:
