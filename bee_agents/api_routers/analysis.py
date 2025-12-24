@@ -115,9 +115,9 @@ async def get_essay_analysis(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.get("/essay/{essay_number}", response_model=EssayAnalysisResponse, operation_id="get_essay")
+@router.get("/essay", response_model=EssayAnalysisResponse, operation_id="get_essay")
 async def get_single_essay_analysis(
-    essay_number: int,
+    essay_number: int = Query(..., description="Essay number (1 or 2)", example=1),
     scholarship: str = Query(..., description="Scholarship name (e.g., 'Delaney_Wings' or 'Evans_Wings')"),
     wai_number: str = Query(..., description="WAI application number")
 ):
@@ -184,9 +184,9 @@ async def get_recommendation_analysis(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.get("/recommendation/{rec_number}", response_model=RecommendationAnalysisResponse, operation_id="get_recommendation")
+@router.get("/recommendation/by-number", response_model=RecommendationAnalysisResponse, operation_id="get_recommendation")
 async def get_single_recommendation_analysis(
-    rec_number: int,
+    rec_number: int = Query(..., description="Recommendation number (1 or 2)", example=1),
     scholarship: str = Query(..., description="Scholarship name (e.g., 'Delaney_Wings' or 'Evans_Wings')"),
     wai_number: str = Query(..., description="WAI application number")
 ):

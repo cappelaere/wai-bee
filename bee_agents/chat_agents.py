@@ -31,7 +31,7 @@ logger = setup_logging('chat_agents')
 
 # Shared cache for response caching across all instances
 response_cache: SlidingCache[str] = SlidingCache(size=100)
-
+response_cache.clear()
 
 class MultiAgentOrchestrator:
     """Multi-agent orchestrator with specialized agents and hand-off capabilities."""
@@ -71,6 +71,14 @@ class MultiAgentOrchestrator:
         except FileNotFoundError:
             logger.error(f"OpenAPI schema not found at {schema_path}")
             raise
+        
+        # Override server URL from environment if set (for Docker networking)
+        api_server_url = os.environ.get("API_SERVER_URL")
+        if api_server_url:
+            # Update the server URL in the schema
+            if "servers" in open_api_schema and len(open_api_schema["servers"]) > 0:
+                open_api_schema["servers"][0]["url"] = api_server_url.rstrip('/')
+                logger.info(f"Using API server URL from environment: {api_server_url}")
         
         # Create tools from OpenAPI schema
         tools = OpenAPITool.from_schema(open_api_schema)

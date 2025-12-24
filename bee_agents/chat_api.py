@@ -92,6 +92,7 @@ from beeai_framework.cache import UnconstrainedCache, SlidingCache
 cache: SlidingCache[int] = SlidingCache(
     size=100  # (required) number of items that can be live in the cache at a single moment
 )
+cache.clear()
 
 # Configure logging
 logger = setup_logging('chat')

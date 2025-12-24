@@ -8,68 +8,54 @@ servers:
 - url: http://localhost:8200
   description: Development server (default port)
 paths:
-  /favicon.ico:
-    get:
-      summary: Favicon
-      description: Serve the favicon.
-      operationId: favicon
-      responses:
-        '200':
-          description: Successful Response
-          content:
-            application/json:
-              schema: {}
   /:
     get:
       tags:
       - Health
       summary: Root
       description: Root endpoint - API health check.
-      operationId: root__get
+      operationId: root
       responses:
         '200':
           description: Successful Response
           content:
             application/json:
               schema: {}
-  /scholarship:
-    get:
-      tags:
-      - Scholarship
-      summary: Get Scholarship Info
-      description: "Get scholarship information and details.\n\nArgs:\n    scholarship:\
-        \ Name of the scholarship\n\nReturns:\n    Dictionary containing scholarship\
-        \ name, description, eligibility,\n    requirements, and other relevant information"
-      operationId: get_scholarship_info
-      parameters:
-      - name: scholarship
-        in: query
-        required: true
-        schema:
-          type: string
-          description: Scholarship name (e.g., 'Delaney_Wings' or 'Evans_Wings')
-          title: Scholarship
-        description: Scholarship name (e.g., 'Delaney_Wings' or 'Evans_Wings')
-      responses:
-        '200':
-          description: Successful Response
-          content:
-            application/json:
-              schema: {}
-        '422':
-          description: Validation Error
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/HTTPValidationError'
   /health:
     get:
       tags:
       - Health
       summary: Health Check
-      description: "Health check endpoint for a specific scholarship.\n\nArgs:\n \
-        \   scholarship: Name of the scholarship"
+      description: 'Enhanced health check endpoint with dependency verification.
+
+
+        Returns detailed health status including:
+
+        - Data services status
+
+        - Disk space availability
+
+        - Directory existence
+
+        - Configuration files
+
+        - Overall system health'
       operationId: health_check
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+  /score:
+    get:
+      tags:
+      - Scores
+      summary: Get Score
+      description: "Get score for a specific application.\n\nArgs:\n    scholarship:\
+        \ Name of the scholarship\n    wai_number: WAI application number\n    \n\
+        Returns:\n    ScoreResponse with application scores"
+      operationId: get_score
       parameters:
       - name: scholarship
         in: query
@@ -79,53 +65,35 @@ paths:
           description: Scholarship name (e.g., 'Delaney_Wings' or 'Evans_Wings')
           title: Scholarship
         description: Scholarship name (e.g., 'Delaney_Wings' or 'Evans_Wings')
+      - name: wai_number
+        in: query
+        required: true
+        schema:
+          type: string
+          description: WAI application number
+          title: Wai Number
+        description: WAI application number
       responses:
         '200':
           description: Successful Response
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ScoreResponse'
         '422':
           description: Validation Error
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
-  /openapi.yml:
-    get:
-      tags:
-      - Documentation
-      summary: Get Openapi Yaml
-      description: Download OpenAPI specification as YAML file.
-      operationId: get_openapi_yaml
-      responses:
-        '200':
-          description: Successful Response
-          content:
-            application/json:
-              schema: {}
-  /openapi.json:
-    get:
-      tags:
-      - Documentation
-      summary: Get Openapi Json
-      description: Download OpenAPI specification as JSON file.
-      operationId: get_openapi_json
-      responses:
-        '200':
-          description: Successful Response
-          content:
-            application/json:
-              schema: {}
   /top_scores:
     get:
       tags:
       - Scores
       summary: Get Top Scores
-      description: "Get top scoring applications for a specific scholarship.\n\nArgs:\n\
-        \    scholarship: Name of the scholarship\n    limit: Maximum number of results\
-        \ to return (1-100)\n    \nReturns:\n    TopScoresResponse with list of top\
-        \ scoring applications"
+      description: "Get top scoring applications.\n\nArgs:\n    scholarship: Name\
+        \ of the scholarship\n    limit: Number of top scores to return (1-100)\n\
+        \    \nReturns:\n    TopScoresResponse with list of top scoring applications"
       operationId: get_top_scores
       parameters:
       - name: scholarship
@@ -160,52 +128,13 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
-  /score:
-    get:
-      tags:
-      - Scores
-      summary: Get Individual Score
-      description: "Get score for a specific application.\n\nArgs:\n    scholarship:\
-        \ Name of the scholarship\n    wai_number: WAI application number\n    \n\
-        Returns:\n    ScoreResponse with application scores and applicant information"
-      operationId: get_individual_score
-      parameters:
-      - name: scholarship
-        in: query
-        required: true
-        schema:
-          type: string
-          description: Scholarship name (e.g., 'Delaney_Wings' or 'Evans_Wings')
-          title: Scholarship
-        description: Scholarship name (e.g., 'Delaney_Wings' or 'Evans_Wings')
-      - name: wai_number
-        in: query
-        required: true
-        schema:
-          type: string
-          description: WAI application number
-          title: Wai Number
-        description: WAI application number
-      responses:
-        '200':
-          description: Successful Response
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ScoreResponse'
-        '422':
-          description: Validation Error
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/HTTPValidationError'
   /statistics:
     get:
       tags:
-      - Statistics
+      - Scores
       summary: Get Statistics
-      description: "Get statistics for all applications in a specific scholarship.\n\
-        \nArgs:\n    scholarship: Name of the scholarship\n\nReturns:\n    StatisticsResponse\
+      description: "Get aggregated statistics for all applications.\n\nArgs:\n   \
+        \ scholarship: Name of the scholarship\n    \nReturns:\n    StatisticsResponse\
         \ with aggregated statistics"
       operationId: get_statistics
       parameters:
@@ -238,7 +167,7 @@ paths:
       description: "Get detailed application analysis.\n\nArgs:\n    scholarship:\
         \ Name of the scholarship\n    wai_number: WAI application number\n    \n\
         Returns:\n    ApplicationAnalysisResponse with detailed analysis"
-      operationId: get_application_analysis
+      operationId: get_application
       parameters:
       - name: scholarship
         in: query
@@ -277,7 +206,7 @@ paths:
       description: "Get academic analysis for an application.\n\nArgs:\n    scholarship:\
         \ Name of the scholarship\n    wai_number: WAI application number\n    \n\
         Returns:\n    AcademicAnalysisResponse with academic analysis"
-      operationId: get_academic_analysis
+      operationId: get_academic
       parameters:
       - name: scholarship
         in: query
@@ -312,12 +241,22 @@ paths:
     get:
       tags:
       - Analysis
-      summary: Get Essay Analysis
-      description: "Get combined essay analysis for an application.\n\nArgs:\n   \
-        \ scholarship: Name of the scholarship\n    wai_number: WAI application number\n\
-        \    \nReturns:\n    Combined analysis of all essays"
-      operationId: get_essay_analysis
+      summary: Get Single Essay Analysis
+      description: "Get analysis for a specific essay.\n\nArgs:\n    essay_number:\
+        \ Essay number (1 or 2)\n    scholarship: Name of the scholarship\n    wai_number:\
+        \ WAI application number\n    \nReturns:\n    EssayAnalysisResponse for the\
+        \ specified essay"
+      operationId: get_essay
       parameters:
+      - name: essay_number
+        in: query
+        required: true
+        schema:
+          type: integer
+          description: Essay number (1 or 2)
+          title: Essay Number
+        description: Essay number (1 or 2)
+        example: 1
       - name: scholarship
         in: query
         required: true
@@ -339,7 +278,8 @@ paths:
           description: Successful Response
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/EssayAnalysisResponse'
         '422':
           description: Validation Error
           content:
@@ -354,7 +294,7 @@ paths:
       description: "Get combined recommendation analysis for an application.\n\nArgs:\n\
         \    scholarship: Name of the scholarship\n    wai_number: WAI application\
         \ number\n    \nReturns:\n    Combined analysis of all recommendations"
-      operationId: get_recommendation_analysis
+      operationId: list_recs
       parameters:
       - name: scholarship
         in: query
@@ -384,17 +324,26 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
-  /attachments:
+  /recommendation/by-number:
     get:
       tags:
-      - Attachments
-      summary: List Attachments
-      description: "List all attachment files for an application with processing metadata.\n\
-        \nArgs:\n    scholarship: Name of the scholarship\n    wai_number: WAI application\
-        \ number\n    \nReturns:\n    Attachment files with download URLs and processing\
-        \ information"
-      operationId: list_attachments
+      - Analysis
+      summary: Get Single Recommendation Analysis
+      description: "Get analysis for a specific recommendation.\n\nArgs:\n    rec_number:\
+        \ Recommendation number (1 or 2)\n    scholarship: Name of the scholarship\n\
+        \    wai_number: WAI application number\n    \nReturns:\n    RecommendationAnalysisResponse\
+        \ for the specified recommendation"
+      operationId: get_recommendation
       parameters:
+      - name: rec_number
+        in: query
+        required: true
+        schema:
+          type: integer
+          description: Recommendation number (1 or 2)
+          title: Rec Number
+        description: Recommendation number (1 or 2)
+        example: 1
       - name: scholarship
         in: query
         required: true
@@ -416,89 +365,8 @@ paths:
           description: Successful Response
           content:
             application/json:
-              schema: {}
-        '422':
-          description: Validation Error
-          content:
-            application/json:
               schema:
-                $ref: '#/components/schemas/HTTPValidationError'
-  /attachments/text/{scholarship}/{wai_number}/{filename}:
-    get:
-      tags:
-      - Attachments
-      summary: Download Text Attachment
-      description: "View a processed text attachment file in browser with styling.\n\
-        \nArgs:\n    scholarship: Scholarship name\n    wai_number: WAI application\
-        \ number\n    filename: Text filename (e.g., 101127_30_1.txt)\n    \nReturns:\n\
-        \    HTML page with styled text content"
-      operationId: download_text_attachment
-      parameters:
-      - name: scholarship
-        in: path
-        required: true
-        schema:
-          type: string
-          title: Scholarship
-      - name: wai_number
-        in: path
-        required: true
-        schema:
-          type: string
-          title: Wai Number
-      - name: filename
-        in: path
-        required: true
-        schema:
-          type: string
-          title: Filename
-      responses:
-        '200':
-          description: Successful Response
-          content:
-            text/html:
-              schema:
-                type: string
-        '422':
-          description: Validation Error
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/HTTPValidationError'
-  /attachments/{scholarship}/{wai_number}/{filename}:
-    get:
-      tags:
-      - Attachments
-      summary: Download Attachment
-      description: "Download original PDF attachment file (admin only).\n\nArgs:\n\
-        \    scholarship: Scholarship name\n    wai_number: WAI application number\n\
-        \    filename: PDF filename\n    \nReturns:\n    PDF file download response"
-      operationId: download_attachment_scholarship
-      parameters:
-      - name: scholarship
-        in: path
-        required: true
-        schema:
-          type: string
-          title: Scholarship
-      - name: wai_number
-        in: path
-        required: true
-        schema:
-          type: string
-          title: Wai Number
-      - name: filename
-        in: path
-        required: true
-        schema:
-          type: string
-          title: Filename
-      responses:
-        '200':
-          description: Successful Response
-          content:
-            application/json:
-              schema: {}
+                $ref: '#/components/schemas/RecommendationAnalysisResponse'
         '422':
           description: Validation Error
           content:
@@ -510,10 +378,387 @@ paths:
       tags:
       - Criteria
       summary: List Criteria
-      description: "List all available evaluation criteria for the scholarship.\n\n\
-        Args:\n    scholarship: Name of the scholarship\n\nReturns:\n    List of available\
-        \ criteria types with descriptions"
+      description: "List all available evaluation criteria files for a scholarship.\n\
+        \nReturns a list of all criteria files available for the specified scholarship,\n\
+        including their names, filenames, and fully qualified download URLs. This\
+        \ endpoint\nis useful for discovering what criteria types are available before\
+        \ requesting\nspecific criteria content.\n\n**Example Request:**\n```\nGET\
+        \ /criteria?scholarship=Delaney_Wings\n```\n\n**Example Response:**\n```json\n\
+        {\n  \"scholarship\": \"Delaney_Wings\",\n  \"criteria_count\": 5,\n  \"criteria\"\
+        : [\n    {\n      \"name\": \"academic_criteria\",\n      \"filename\": \"\
+        academic_criteria.txt\",\n      \"url\": \"http://localhost:8200/criteria/Delaney_Wings/academic_criteria.txt\"\
+        \n    },\n    {\n      \"name\": \"application_criteria\",\n      \"filename\"\
+        : \"application_criteria.txt\",\n      \"url\": \"http://localhost:8200/criteria/Delaney_Wings/application_criteria.txt\"\
+        \n    }\n  ]\n}\n```\n\nArgs:\n    scholarship: Name of the scholarship (e.g.,\
+        \ 'Delaney_Wings' or 'Evans_Wings')\n    \nReturns:\n    Dictionary containing:\n\
+        \    - scholarship: Name of the scholarship\n    - criteria_count: Number\
+        \ of criteria files found\n    - criteria: List of criteria objects with name,\
+        \ filename, and download URL\n    \nRaises:\n    HTTPException 404: If scholarship\
+        \ not found or no criteria directory exists"
       operationId: list_criteria
+      parameters:
+      - name: scholarship
+        in: query
+        required: true
+        schema:
+          type: string
+          description: Scholarship name (e.g., 'Delaney_Wings' or 'Evans_Wings')
+          title: Scholarship
+        description: Scholarship name (e.g., 'Delaney_Wings' or 'Evans_Wings')
+        example: Delaney_Wings
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /criteria/by-type:
+    get:
+      tags:
+      - Criteria
+      summary: Get Criteria By Type
+      description: "Get full evaluation criteria text for a specific criteria type.\n\
+        \    \n    Retrieves the complete evaluation criteria text for a given criteria\
+        \ type.\n    The endpoint automatically maps criteria types to their corresponding\
+        \ filenames:\n    - `academic` \u2192 `academic_criteria.txt`\n    - `application`\
+        \ \u2192 `application_criteria.txt`\n    - `essay` \u2192 `essay_criteria.txt`\n\
+        \    - `recommendation` \u2192 `recommendation_criteria.txt`\n    - `social`\
+        \ \u2192 `social_criteria.txt`\n    \n    **Example Request:**\n    ```\n\
+        \    GET /criteria/by-type?criteria_type=academic&scholarship=Delaney_Wings\n\
+        \    ```\n    \n    **Example Response:**\n    ```json\n    {\n      \"scholarship\"\
+        : \"Delaney_Wings\",\n      \"criteria_type\": \"academic\",\n      \"filename\"\
+        : \"academic_criteria.txt\",\n      \"content\": \"# Academic Profile Evaluation\
+        \ Criteria\n\nThis file contains...\",\n      \"line_count\": 72\n    }\n\
+        \    ```\n    \n    **Valid Criteria Types:**\n    - `application`: Criteria\
+        \ for evaluating application completeness and validity\n    - `academic`:\
+        \ Criteria for evaluating academic performance and readiness\n    - `essay`:\
+        \ Criteria for evaluating essay quality and content\n    - `recommendation`:\
+        \ Criteria for evaluating letters of recommendation\n    - `social`: Criteria\
+        \ for evaluating social impact and community involvement\n    \n    Args:\n\
+        \        criteria_type: Type of criteria. Must be one of: application, academic,\
+        \ essay, recommendation, social\n        scholarship: Name of the scholarship\
+        \ (e.g., 'Delaney_Wings' or 'Evans_Wings')\n        \n    Returns:\n     \
+        \   Dictionary containing:\n        - scholarship: Name of the scholarship\n\
+        \        - criteria_type: The criteria type requested\n        - filename:\
+        \ The actual filename (e.g., \"academic_criteria.txt\")\n        - content:\
+        \ Full text content of the criteria file\n        - line_count: Number of\
+        \ lines in the criteria file\n        \n    Raises:\n        HTTPException\
+        \ 400: If criteria_type is invalid or missing\n        HTTPException 404:\
+        \ If scholarship not found or criteria file doesn't exist\n        HTTPException\
+        \ 500: If file cannot be read"
+      operationId: get_criteria_by_type
+      parameters:
+      - name: criteria_type
+        in: query
+        required: true
+        schema:
+          type: string
+          description: 'Type of evaluation criteria. Must be one of: application,
+            academic, essay, recommendation, social'
+          title: Criteria Type
+        description: 'Type of evaluation criteria. Must be one of: application, academic,
+          essay, recommendation, social'
+        example: academic
+      - name: scholarship
+        in: query
+        required: true
+        schema:
+          type: string
+          description: Scholarship name (e.g., 'Delaney_Wings' or 'Evans_Wings')
+          title: Scholarship
+        description: Scholarship name (e.g., 'Delaney_Wings' or 'Evans_Wings')
+        example: Delaney_Wings
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /criteria/file:
+    get:
+      tags:
+      - Criteria
+      summary: Get Criteria File
+      description: "Download a specific criteria file by filename.\n\nDownloads a\
+        \ criteria file directly as plain text. This endpoint requires the\nexact\
+        \ filename (e.g., \"academic_criteria.txt\") rather than just the criteria\
+        \ type.\nUse this endpoint when you already know the exact filename, or use\n\
+        `/criteria/by-type` for type-based access.\n\n**Example Request:**\n```\n\
+        GET /criteria/file?scholarship=Delaney_Wings&filename=academic_criteria.txt\n\
+        ```\n\n**Security:**\n- Filenames are validated to prevent path traversal\
+        \ attacks\n- Only `.txt` files are allowed\n- Filenames containing `/` or\
+        \ `\\` are rejected\n\nArgs:\n    scholarship: Name of the scholarship (e.g.,\
+        \ 'Delaney_Wings' or 'Evans_Wings')\n    filename: Exact filename of the criteria\
+        \ file (must end with .txt, e.g., \"academic_criteria.txt\")\n    \nReturns:\n\
+        \    FileResponse: Plain text file with content-type \"text/plain\"\n    \n\
+        Raises:\n    HTTPException 400: If filename is invalid (doesn't end with .txt\
+        \ or contains path separators)\n    HTTPException 404: If scholarship not\
+        \ found or criteria file doesn't exist"
+      operationId: get_criteria_file
+      parameters:
+      - name: scholarship
+        in: query
+        required: true
+        schema:
+          type: string
+          description: Name of the scholarship (e.g., 'Delaney_Wings' or 'Evans_Wings')
+          title: Scholarship
+        description: Name of the scholarship (e.g., 'Delaney_Wings' or 'Evans_Wings')
+        example: Delaney_Wings
+      - name: filename
+        in: query
+        required: true
+        schema:
+          type: string
+          description: Name of the criteria file (must end with .txt, e.g., 'academic_criteria.txt')
+          title: Filename
+        description: Name of the criteria file (must end with .txt, e.g., 'academic_criteria.txt')
+        example: academic_criteria.txt
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /admin/weights:
+    get:
+      tags:
+      - Admin
+      summary: Get Scholarship Weights
+      description: Get current scoring weights for a scholarship from canonical config.
+      operationId: get_weights
+      parameters:
+      - name: scholarship
+        in: query
+        required: true
+        schema:
+          type: string
+          description: Scholarship name (e.g., 'Delaney_Wings' or 'Evans_Wings')
+          title: Scholarship
+        description: Scholarship name (e.g., 'Delaney_Wings' or 'Evans_Wings')
+        example: Delaney_Wings
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+    put:
+      tags:
+      - Admin
+      summary: Update Scholarship Weights
+      description: Update scoring weights in canonical config and regenerate artifacts.
+      operationId: update_weights
+      parameters:
+      - name: scholarship
+        in: query
+        required: true
+        schema:
+          type: string
+          description: Scholarship name (e.g., 'Delaney_Wings' or 'Evans_Wings')
+          title: Scholarship
+        description: Scholarship name (e.g., 'Delaney_Wings' or 'Evans_Wings')
+        example: Delaney_Wings
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: true
+              title: Payload
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /admin/criteria:
+    get:
+      tags:
+      - Admin
+      summary: Get Agent Criteria
+      description: Get current criteria text for an agent.
+      operationId: get_criteria
+      parameters:
+      - name: scholarship
+        in: query
+        required: true
+        schema:
+          type: string
+          description: Scholarship name (e.g., 'Delaney_Wings' or 'Evans_Wings')
+          title: Scholarship
+        description: Scholarship name (e.g., 'Delaney_Wings' or 'Evans_Wings')
+        example: Delaney_Wings
+      - name: agent_name
+        in: query
+        required: true
+        schema:
+          type: string
+          description: Name of the agent (e.g., 'academic', 'essay', 'recommendation')
+          title: Agent Name
+        description: Name of the agent (e.g., 'academic', 'essay', 'recommendation')
+        example: academic
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+    put:
+      tags:
+      - Admin
+      summary: Update Agent Criteria
+      description: Update criteria text for an agent and regenerate artifacts.
+      operationId: update_criteria
+      parameters:
+      - name: scholarship
+        in: query
+        required: true
+        schema:
+          type: string
+          description: Scholarship name (e.g., 'Delaney_Wings' or 'Evans_Wings')
+          title: Scholarship
+        description: Scholarship name (e.g., 'Delaney_Wings' or 'Evans_Wings')
+        example: Delaney_Wings
+      - name: agent_name
+        in: query
+        required: true
+        schema:
+          type: string
+          description: Name of the agent (e.g., 'academic', 'essay', 'recommendation')
+          title: Agent Name
+        description: Name of the agent (e.g., 'academic', 'essay', 'recommendation')
+        example: academic
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: true
+              title: Payload
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /admin/criteria/regenerate:
+    post:
+      tags:
+      - Admin
+      summary: Regenerate Agent Criteria With Llm
+      description: 'Generate a new criteria draft for an agent using an LLM.
+
+
+        This endpoint does NOT persist changes automatically. It returns a
+
+        proposed `criteria_text` that an admin can review and then apply via
+
+        the standard PUT /admin/{scholarship}/criteria/{agent_name} endpoint.'
+      operationId: regen_criteria
+      parameters:
+      - name: scholarship
+        in: query
+        required: true
+        schema:
+          type: string
+          description: Scholarship name (e.g., 'Delaney_Wings' or 'Evans_Wings')
+          title: Scholarship
+        description: Scholarship name (e.g., 'Delaney_Wings' or 'Evans_Wings')
+        example: Delaney_Wings
+      - name: agent_name
+        in: query
+        required: true
+        schema:
+          type: string
+          description: Name of the agent (e.g., 'academic', 'essay', 'recommendation')
+          title: Agent Name
+        description: Name of the agent (e.g., 'academic', 'essay', 'recommendation')
+        example: academic
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: true
+              title: Payload
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /favicon.ico:
+    get:
+      summary: Favicon
+      description: Serve the favicon.
+      operationId: favicon_favicon_ico_get
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+  /scholarship:
+    get:
+      tags:
+      - Scholarship
+      summary: Get Scholarship Info
+      description: "Get scholarship information and details.\n\nArgs:\n    scholarship:\
+        \ Name of the scholarship\n\nReturns:\n    Dictionary containing scholarship\
+        \ name, description, eligibility,\n    requirements, and other relevant information"
+      operationId: get_scholarship_info_scholarship_get
       parameters:
       - name: scholarship
         in: query
@@ -535,23 +780,42 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
-  /criteria/{criteria_type}:
+  /openapi.yml:
     get:
       tags:
-      - Criteria
-      summary: Get Criteria
-      description: "Get evaluation criteria for a specific type.\n\nArgs:\n    criteria_type:\
-        \ Type of criteria (application, academic, essay, recommendation, social)\n\
-        \    scholarship: Name of the scholarship\n    \nReturns:\n    Criteria content\
-        \ as text"
-      operationId: get_criteria
+      - Documentation
+      summary: Get Openapi Yaml
+      description: Download OpenAPI specification as YAML file.
+      operationId: get_openapi_yaml_openapi_yml_get
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+  /openapi.json:
+    get:
+      tags:
+      - Documentation
+      summary: Get Openapi Json
+      description: Download OpenAPI specification as JSON file.
+      operationId: get_openapi_json_openapi_json_get
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+  /attachments:
+    get:
+      tags:
+      - Attachments
+      summary: Download Attachment
+      description: "Download original PDF attachment file (admin only).\n\nArgs:\n\
+        \    scholarship: Scholarship name\n    wai_number: WAI application number\n\
+        \    filename: PDF filename\n    \nReturns:\n    PDF file download response"
+      operationId: download_attachment_attachments_get
       parameters:
-      - name: criteria_type
-        in: path
-        required: true
-        schema:
-          type: string
-          title: Criteria Type
       - name: scholarship
         in: query
         required: true
@@ -560,12 +824,76 @@ paths:
           description: Scholarship name (e.g., 'Delaney_Wings' or 'Evans_Wings')
           title: Scholarship
         description: Scholarship name (e.g., 'Delaney_Wings' or 'Evans_Wings')
+      - name: wai_number
+        in: query
+        required: true
+        schema:
+          type: string
+          description: WAI application number
+          title: Wai Number
+        description: WAI application number
+      - name: filename
+        in: query
+        required: true
+        schema:
+          type: string
+          description: PDF filename
+          title: Filename
+        description: PDF filename
       responses:
         '200':
           description: Successful Response
           content:
             application/json:
               schema: {}
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /attachments/text:
+    get:
+      tags:
+      - Attachments
+      summary: Download Text Attachment
+      description: "View a processed text attachment file in browser with styling.\n\
+        \nArgs:\n    scholarship: Scholarship name\n    wai_number: WAI application\
+        \ number\n    filename: Text filename (e.g., 101127_30_1.txt)\n    \nReturns:\n\
+        \    HTML page with styled text content"
+      operationId: download_text_attachment_attachments_text_get
+      parameters:
+      - name: scholarship
+        in: query
+        required: true
+        schema:
+          type: string
+          description: Scholarship name (e.g., 'Delaney_Wings' or 'Evans_Wings')
+          title: Scholarship
+        description: Scholarship name (e.g., 'Delaney_Wings' or 'Evans_Wings')
+      - name: wai_number
+        in: query
+        required: true
+        schema:
+          type: string
+          description: WAI application number
+          title: Wai Number
+        description: WAI application number
+      - name: filename
+        in: query
+        required: true
+        schema:
+          type: string
+          description: Text filename (e.g., 101127_30_1.txt)
+          title: Filename
+        description: Text filename (e.g., 101127_30_1.txt)
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            text/html:
+              schema:
+                type: string
         '422':
           description: Validation Error
           content:
@@ -580,7 +908,7 @@ paths:
       description: "Get agent configuration and scoring weights for the scholarship.\n\
         \nArgs:\n    scholarship: Name of the scholarship\n\nReturns:\n    Agent configuration\
         \ including scoring weights and evaluation details"
-      operationId: get_agents_config
+      operationId: get_agents_config_agents_get
       parameters:
       - name: scholarship
         in: query
@@ -602,7 +930,7 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
-  /agents/{agent_name}:
+  /agents/by-name:
     get:
       tags:
       - Configuration
@@ -611,14 +939,17 @@ paths:
         \ Name of the agent (application, academic, essay, recommendation, attachment)\n\
         \    scholarship: Name of the scholarship\n    \nReturns:\n    Agent configuration\
         \ details including weight and evaluation criteria"
-      operationId: get_agent_config
+      operationId: get_agent_config_agents_by_name_get
       parameters:
       - name: agent_name
-        in: path
+        in: query
         required: true
         schema:
           type: string
+          description: Name of the agent (e.g., 'academic', 'essay', 'recommendation')
           title: Agent Name
+        description: Name of the agent (e.g., 'academic', 'essay', 'recommendation')
+        example: academic
       - name: scholarship
         in: query
         required: true
@@ -755,6 +1086,52 @@ components:
       - source_file
       title: ApplicationAnalysisResponse
       description: Response model for application analysis.
+    EssayAnalysisResponse:
+      properties:
+        wai_number:
+          type: string
+          title: Wai Number
+          description: WAI application number
+        essay_number:
+          type: integer
+          title: Essay Number
+          description: Essay number (1 or 2)
+        summary:
+          type: string
+          title: Summary
+          description: Summary of essay quality
+        strengths:
+          items:
+            type: string
+          type: array
+          title: Strengths
+          description: Essay strengths
+        weaknesses:
+          items:
+            type: string
+          type: array
+          title: Weaknesses
+          description: Essay weaknesses
+        score:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          title: Score
+          description: Essay score if available
+        processed_date:
+          type: string
+          title: Processed Date
+          description: When the analysis was processed
+      type: object
+      required:
+      - wai_number
+      - essay_number
+      - summary
+      - strengths
+      - weaknesses
+      - processed_date
+      title: EssayAnalysisResponse
+      description: Response model for essay analysis.
     HTTPValidationError:
       properties:
         detail:
@@ -764,6 +1141,52 @@ components:
           title: Detail
       type: object
       title: HTTPValidationError
+    RecommendationAnalysisResponse:
+      properties:
+        wai_number:
+          type: string
+          title: Wai Number
+          description: WAI application number
+        recommendation_number:
+          type: integer
+          title: Recommendation Number
+          description: Recommendation number (1 or 2)
+        summary:
+          type: string
+          title: Summary
+          description: Summary of recommendation quality
+        strengths:
+          items:
+            type: string
+          type: array
+          title: Strengths
+          description: Recommendation strengths
+        concerns:
+          items:
+            type: string
+          type: array
+          title: Concerns
+          description: Recommendation concerns
+        score:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          title: Score
+          description: Recommendation score if available
+        processed_date:
+          type: string
+          title: Processed Date
+          description: When the analysis was processed
+      type: object
+      required:
+      - wai_number
+      - recommendation_number
+      - summary
+      - strengths
+      - concerns
+      - processed_date
+      title: RecommendationAnalysisResponse
+      description: Response model for recommendation analysis.
     ScoreResponse:
       properties:
         wai_number:

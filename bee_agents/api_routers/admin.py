@@ -10,7 +10,7 @@ import os
 import logging
 from pathlib import Path
 from typing import Dict, Any
-from fastapi import APIRouter, HTTPException, Depends, Request
+from fastapi import APIRouter, HTTPException, Depends, Query, Request, Body
 from ..api_utils import get_scholarship_config_path, load_scholarship_config
 
 router = APIRouter(tags=["Admin"], prefix="/admin")
@@ -26,9 +26,9 @@ def require_admin(request: Request) -> None:
     return
 
 
-@router.get("/{scholarship}/weights", operation_id="get_weights")
+@router.get("/weights", operation_id="get_weights")
 async def get_scholarship_weights(
-    scholarship: str,
+    scholarship: str = Query(..., description="Scholarship name (e.g., 'Delaney_Wings' or 'Evans_Wings')", example="Delaney_Wings"),
     _: None = Depends(require_admin),
 ):
     """Get current scoring weights for a scholarship from canonical config."""
@@ -58,10 +58,10 @@ async def get_scholarship_weights(
     }
 
 
-@router.put("/{scholarship}/weights", operation_id="update_weights")
+@router.put("/weights", operation_id="update_weights")
 async def update_scholarship_weights(
-    scholarship: str,
-    payload: Dict[str, Any],
+    scholarship: str = Query(..., description="Scholarship name (e.g., 'Delaney_Wings' or 'Evans_Wings')", example="Delaney_Wings"),
+    payload: Dict[str, Any] = Body(...),
     _: None = Depends(require_admin),
 ):
     """Update scoring weights in canonical config and regenerate artifacts."""
@@ -108,10 +108,10 @@ async def update_scholarship_weights(
     return {"status": "ok", "updated_agents": list(new_weights.keys())}
 
 
-@router.get("/{scholarship}/criteria/{agent_name}", operation_id="get_criteria")
+@router.get("/criteria", operation_id="get_criteria")
 async def get_agent_criteria(
-    scholarship: str,
-    agent_name: str,
+    scholarship: str = Query(..., description="Scholarship name (e.g., 'Delaney_Wings' or 'Evans_Wings')", example="Delaney_Wings"),
+    agent_name: str = Query(..., description="Name of the agent (e.g., 'academic', 'essay', 'recommendation')", example="academic"),
     _: None = Depends(require_admin),
 ):
     """Get current criteria text for an agent."""
@@ -136,11 +136,11 @@ async def get_agent_criteria(
     }
 
 
-@router.put("/{scholarship}/criteria/{agent_name}", operation_id="update_criteria")
+@router.put("/criteria", operation_id="update_criteria")
 async def update_agent_criteria(
-    scholarship: str,
-    agent_name: str,
-    payload: Dict[str, Any],
+    scholarship: str = Query(..., description="Scholarship name (e.g., 'Delaney_Wings' or 'Evans_Wings')", example="Delaney_Wings"),
+    agent_name: str = Query(..., description="Name of the agent (e.g., 'academic', 'essay', 'recommendation')", example="academic"),
+    payload: Dict[str, Any] = Body(...),
     _: None = Depends(require_admin),
 ):
     """Update criteria text for an agent and regenerate artifacts."""
@@ -191,11 +191,11 @@ async def update_agent_criteria(
     return {"status": "ok", "agent": agent_name}
 
 
-@router.post("/{scholarship}/criteria/{agent_name}/regenerate", operation_id="regen_criteria")
+@router.post("/criteria/regenerate", operation_id="regen_criteria")
 async def regenerate_agent_criteria_with_llm(
-    scholarship: str,
-    agent_name: str,
-    payload: Dict[str, Any],
+    scholarship: str = Query(..., description="Scholarship name (e.g., 'Delaney_Wings' or 'Evans_Wings')", example="Delaney_Wings"),
+    agent_name: str = Query(..., description="Name of the agent (e.g., 'academic', 'essay', 'recommendation')", example="academic"),
+    payload: Dict[str, Any] = Body(...),
     _: None = Depends(require_admin),
 ):
     """Generate a new criteria draft for an agent using an LLM.

@@ -380,8 +380,12 @@ async def list_attachments(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@app.get("/attachments/text/{scholarship}/{wai_number}/{filename}", tags=["Attachments"], response_class=HTMLResponse)
-async def download_text_attachment(scholarship: str, wai_number: str, filename: str):
+@app.get("/attachments/text", tags=["Attachments"], response_class=HTMLResponse)
+async def download_text_attachment(
+    scholarship: str = Query(..., description="Scholarship name (e.g., 'Delaney_Wings' or 'Evans_Wings')"),
+    wai_number: str = Query(..., description="WAI application number"),
+    filename: str = Query(..., description="Text filename (e.g., 101127_30_1.txt)")
+):
     """View a processed text attachment file in browser with styling.
     
     Args:
@@ -581,8 +585,12 @@ async def download_text_attachment(scholarship: str, wai_number: str, filename: 
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@app.get("/attachments/{scholarship}/{wai_number}/{filename}", tags=["Attachments"])
-async def download_attachment(scholarship: str, wai_number: str, filename: str):
+@app.get("/attachments", tags=["Attachments"])
+async def download_attachment(
+    scholarship: str = Query(..., description="Scholarship name (e.g., 'Delaney_Wings' or 'Evans_Wings')"),
+    wai_number: str = Query(..., description="WAI application number"),
+    filename: str = Query(..., description="PDF filename")
+):
     """Download original PDF attachment file (admin only).
     
     Args:
@@ -625,54 +633,8 @@ async def download_attachment(scholarship: str, wai_number: str, filename: str):
 # The old get_criteria endpoint (GET /criteria/{criteria_type}) had a different URL pattern
 # and is not currently implemented in the router. If needed, it should be added to the router.
 
-@app.get("/criteria/{criteria_type}", tags=["Criteria"])
-async def get_criteria_legacy(
-    criteria_type: str,
-    scholarship: str = Query(..., description="Scholarship name (e.g., 'Delaney_Wings' or 'Evans_Wings')")
-):
-    """Get evaluation criteria for a specific type (legacy endpoint).
-    
-    Args:
-        criteria_type: Type of criteria (application, academic, essay, recommendation, social)
-        scholarship: Name of the scholarship
-        
-    Returns:
-        Criteria content as text
-    """
-    data_service = get_data_service(scholarship)
-    
-    # Validate criteria type
-    valid_types = ["application", "academic", "essay", "recommendation", "social"]
-    if criteria_type not in valid_types:
-        raise HTTPException(
-            status_code=400,
-            detail=f"Invalid criteria type. Must be one of: {', '.join(valid_types)}"
-        )
-    
-    try:
-        criteria_file = Path("data") / data_service.scholarship_name / "criteria" / f"{criteria_type}_criteria.txt"
-        
-        if not criteria_file.exists():
-            raise HTTPException(
-                status_code=404,
-                detail=f"{criteria_type.title()} criteria not found for {data_service.scholarship_name}"
-            )
-        
-        with open(criteria_file, 'r', encoding='utf-8') as f:
-            content = f.read()
-        
-        return {
-            "scholarship": data_service.scholarship_name,
-            "criteria_type": criteria_type,
-            "filename": f"{criteria_type}_criteria.txt",
-            "content": content,
-            "line_count": len(content.split('\n'))
-        }
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"Error getting {criteria_type} criteria: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+# REMOVED: Legacy /criteria/{criteria_type} endpoint
+# Use /criteria/by-type?criteria_type=...&scholarship=... from the criteria router instead
 
 
 @app.get("/agents", tags=["Configuration"])
@@ -712,9 +674,9 @@ async def get_agents_config(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@app.get("/agents/{agent_name}", tags=["Configuration"])
+@app.get("/agents/by-name", tags=["Configuration"])
 async def get_agent_config(
-    agent_name: str,
+    agent_name: str = Query(..., description="Name of the agent (e.g., 'academic', 'essay', 'recommendation')", example="academic"),
     scholarship: str = Query(..., description="Scholarship name (e.g., 'Delaney_Wings' or 'Evans_Wings')")
 ):
     """Get configuration for a specific agent.

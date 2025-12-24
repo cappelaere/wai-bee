@@ -35,7 +35,7 @@ def test_list_criteria(test_client, scholarship_name):
 
 def test_get_application_criteria(test_client, scholarship_name):
     """Test getting application criteria."""
-    response = test_client.get(f"/criteria/application?scholarship={scholarship_name}")
+    response = test_client.get(f"/criteria/by-type?criteria_type=application&scholarship={scholarship_name}")
     
     assert response.status_code == 200
     data = response.json()
@@ -54,7 +54,7 @@ def test_get_application_criteria(test_client, scholarship_name):
 
 def test_get_academic_criteria(test_client, scholarship_name):
     """Test getting academic criteria."""
-    response = test_client.get(f"/criteria/academic?scholarship={scholarship_name}")
+    response = test_client.get(f"/criteria/by-type?criteria_type=academic&scholarship={scholarship_name}")
     
     assert response.status_code == 200
     data = response.json()
@@ -66,7 +66,7 @@ def test_get_academic_criteria(test_client, scholarship_name):
 
 def test_get_essay_criteria(test_client, scholarship_name):
     """Test getting essay criteria."""
-    response = test_client.get(f"/criteria/essay?scholarship={scholarship_name}")
+    response = test_client.get(f"/criteria/by-type?criteria_type=essay&scholarship={scholarship_name}")
     
     assert response.status_code == 200
     data = response.json()
@@ -77,7 +77,7 @@ def test_get_essay_criteria(test_client, scholarship_name):
 
 def test_get_recommendation_criteria(test_client, scholarship_name):
     """Test getting recommendation criteria."""
-    response = test_client.get(f"/criteria/recommendation?scholarship={scholarship_name}")
+    response = test_client.get(f"/criteria/by-type?criteria_type=recommendation&scholarship={scholarship_name}")
     
     assert response.status_code == 200
     data = response.json()
@@ -88,7 +88,7 @@ def test_get_recommendation_criteria(test_client, scholarship_name):
 
 def test_get_invalid_criteria_type(test_client, scholarship_name):
     """Test getting criteria with invalid type."""
-    response = test_client.get(f"/criteria/invalid_type?scholarship={scholarship_name}")
+    response = test_client.get(f"/criteria/by-type?criteria_type=invalid_type&scholarship={scholarship_name}")
     
     assert response.status_code == 400
     data = response.json()
@@ -99,7 +99,7 @@ def test_get_invalid_criteria_type(test_client, scholarship_name):
 
 def test_criteria_content_structure(test_client, scholarship_name):
     """Test that criteria content has expected structure."""
-    response = test_client.get(f"/criteria/application?scholarship={scholarship_name}")
+    response = test_client.get(f"/criteria/by-type?criteria_type=application&scholarship={scholarship_name}")
     
     assert response.status_code == 200
     data = response.json()
