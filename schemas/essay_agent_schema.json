@@ -53,32 +53,36 @@
             "integer",
             "number", 
             "null"
-          ]
+          ],
+          "minimum": 0,
+          "maximum": 10,
+          "description": "motivation score (0-10 points)"
         },
         "goals_clarity_score": {
           "type": [
             "integer",
             "number", 
             "null"
-          ]
+          ],
+          "minimum": 0,
+          "maximum": 10,
+          "description": "goals clarity score (0-10 points)"
         },
         "character_service_leadership_score": {
           "type": [
             "integer",
             "number", 
             "null"
-          ]
-        },
-        "overall_score": {
-          "type": [
-            "integer",
-            "number",
-            "null"
-          ]
+          ],
+          "minimum": 0,
+          "maximum": 10,
+          "description": "character service leadership score (0-10 points)"
         }
       },
       "required": [
-        "overall_score"
+        "motivation_score",
+        "goals_clarity_score",
+        "character_service_leadership_score"
       ]
     },
     "score_breakdown": {

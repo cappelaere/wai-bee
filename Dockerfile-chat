@@ -85,8 +85,9 @@ ENV HOST=0.0.0.0 \
     PORT=8100 \
     CHAT_MODEL=anthropic:claude-sonnet-4-20250514
 
-# Run the chat server with uvicorn and auto-reload for development.
-# Limit reload watching to the application code directory so that changes in
-# mounted data/outputs folders (e.g., when workflows write artifacts) do not
-# constantly restart the server and drop WebSocket connections.
-CMD ["uvicorn", "bee_agents.chat_api:app", "--host", "0.0.0.0", "--port", "8100", "--reload", "--reload-dir", "bee_agents"]
+# Run the chat server with uvicorn.
+# Note: We intentionally do NOT use --reload here because the statreload supervisor
+# can exhaust file descriptors under load (Too many open files) when scanning
+# mounted volumes inside the container. For development hot-reload, run uvicorn
+# with --reload on your host instead of inside Docker.
+CMD ["uvicorn", "bee_agents.chat_api:app", "--host", "0.0.0.0", "--port", "8100"]

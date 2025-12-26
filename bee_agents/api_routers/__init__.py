@@ -13,6 +13,7 @@ from .scores import router as scores_router
 from .analysis import router as analysis_router
 from .criteria import router as criteria_router
 from .admin import router as admin_router
+from .reviews import router as reviews_router
 
 __all__ = [
     "health_router",
@@ -20,6 +21,7 @@ __all__ = [
     "analysis_router",
     "criteria_router",
     "admin_router",
+    "reviews_router",
 ]
 
 # Made with Bob

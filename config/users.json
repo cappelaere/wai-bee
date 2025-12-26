@@ -9,7 +9,9 @@
       "permissions": ["read", "write", "admin"],
       "email": "pat@cappelaere.com",
       "full_name": "System Administrator",
-      "enabled": true
+      "enabled": true,
+      "reviewer": true,
+      "initials": "PGC"
     },
     "delaney_manager": {
       "password_env": "DELANEY_PASSWORD",
@@ -18,7 +20,9 @@
       "permissions": ["read", "write"],
       "email": "delaney.manager@example.com",
       "full_name": "Delaney Scholarship Manager",
-      "enabled": true
+      "enabled": true,
+      "reviewer": true,
+      "initials": "DGM"
     },
     "evans_manager": {
       "password_env": "EVANS_PASSWORD",
@@ -27,7 +31,9 @@
       "permissions": ["read", "write"],
       "email": "evans.manager@example.com",
       "full_name": "Evans Scholarship Manager",
-      "enabled": true
+      "enabled": true,
+      "reviewer": true,
+      "initials": "EGM"
     },
     "user": {
       "password_env": "USER_PASSWORD",
@@ -36,7 +42,9 @@
       "permissions": ["read"],
       "email": "user@example.com",
       "full_name": "General User (Backward Compatibility)",
-      "enabled": true
+      "enabled": true,
+      "reviewer": true,
+      "initials": "GU"
     }
   },
   "scholarships": {

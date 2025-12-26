@@ -160,8 +160,8 @@ class LLMService:
             logger.info(f"Extracted: {app_data.name} from {location_str}")
             return app_data
             
-        except Exception as e:
-            logger.error(f"Error extracting information: {str(e)}")
+        except Exception:
+            logger.exception(f"Error extracting information for WAI {wai_number} from {source_file}")
             return None
     
     @staticmethod
@@ -310,15 +310,15 @@ class LLMService:
                     
                     # Calculate overall_score if missing
                     scores = score_data.get('scores', {})
-                    if 'overall_score' not in scores:
-                        # Calculate from component scores
-                        overall = (
-                            scores.get('completeness_score', 0) +
-                            scores.get('validity_score', 0) +
-                            scores.get('attachment_score', 0)
-                        )
-                        scores['overall_score'] = overall
-                        logger.info(f"Calculated missing overall_score: {overall}")
+                    
+                    # Calculate from component scores
+                    overall = (
+                        scores.get('completeness_score', 0) +
+                        scores.get('validity_score', 0) +
+                        scores.get('attachment_score', 0)
+                    )
+                    scores['overall_score'] = int(overall)
+                    logger.debug(f"Calculated application overall_score: {scores['overall_score'] }")
                     
                     # Create ApplicationAnalysis object
                     analysis = ApplicationAnalysis(
@@ -337,16 +337,16 @@ class LLMService:
                     logger.info(f"Application scored: {analysis.scores.overall_score}/100")
                     return analysis
                     
-                except Exception as e:
-                    logger.warning(f"Scoring attempt {attempt} failed: {e}")
+                except Exception:
+                    logger.exception(f"Scoring attempt {attempt} failed for WAI {wai_number}")
                     if attempt == max_retries:
                         logger.error(f"All scoring attempts failed for WAI {wai_number}")
                         return None
             
             return None
             
-        except Exception as e:
-            logger.error(f"Error scoring application: {e}")
+        except Exception:
+            logger.exception(f"Error scoring application for WAI {wai_number}")
             return None
 
 

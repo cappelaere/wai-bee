@@ -77,29 +77,34 @@
           "type": [
             "integer",
             "number"
-          ]
+          ],
+          "minimum": 0,
+          "maximum": 10,
+          "description": "average support strength score (0-10 points)"
         },
         "consistency_of_support_score": {
           "type": [
             "integer",
             "number"
-          ]
+          ],
+          "minimum": 0,
+          "maximum": 10,
+          "description": "consistency of support score (0-10 points)"
         },
         "depth_of_endorsement_score": {
           "type": [
             "integer",
             "number"
-          ]
-        },
-        "overall_score": {
-          "type": [
-            "integer",
-            "number"
-          ]
+          ],
+          "minimum": 0,
+          "maximum": 10,
+          "description": "depth_of_endorsement_score (0-10 points)"
         }
       },
       "required": [
-        "overall_score"
+        "average_support_strength_score",
+        "consistency_of_support_score",
+        "depth_of_endorsement_score"
       ]
     },
     "score_breakdown": {

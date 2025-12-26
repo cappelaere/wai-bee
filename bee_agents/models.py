@@ -9,7 +9,7 @@ License: MIT
 """
 
 from typing import List, Optional, Dict, Any
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, conint
 
 
 class ScoreResponse(BaseModel):
@@ -95,5 +95,30 @@ class ErrorResponse(BaseModel):
     """Response model for errors."""
     error: str = Field(..., description="Error message")
     detail: Optional[str] = Field(None, description="Additional error details")
+
+
+class ReviewCreateRequest(BaseModel):
+    """Request model for creating or updating a reviewer score."""
+    score: conint(ge=1, le=10) = Field(..., description="Reviewer score from 1 (lowest) to 10 (highest)")
+    comments: Optional[str] = Field(None, description="Optional free-text review comments")
+
+
+class ReviewResponse(BaseModel):
+    """Response model for an individual reviewer score."""
+    scholarship: str = Field(..., description="Scholarship identifier (e.g., 'Delaney_Wings')")
+    wai_number: str = Field(..., description="WAI application number")
+    reviewer_username: str = Field(..., description="Reviewer username")
+    reviewer_initials: str = Field(..., description="Reviewer initials used for file storage")
+    score: conint(ge=1, le=10) = Field(..., description="Reviewer score from 1–10")
+    comments: Optional[str] = Field(None, description="Optional reviewer comments")
+    created_at: str = Field(..., description="ISO 8601 timestamp when the review was first created")
+    updated_at: str = Field(..., description="ISO 8601 timestamp when the review was last updated")
+
+
+class ReviewListResponse(BaseModel):
+    """Response model for listing all reviews by the current reviewer."""
+    reviewer_username: str = Field(..., description="Reviewer username")
+    reviewer_initials: str = Field(..., description="Reviewer initials")
+    reviews: List[ReviewResponse] = Field(..., description="List of reviews submitted by this reviewer")
 
 # Made with Bob

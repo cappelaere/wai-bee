@@ -88,11 +88,11 @@ from beeai_framework.parsers.field import ParserField
 from beeai_framework.parsers.line_prefix import LinePrefixParser, LinePrefixParserNode
 from beeai_framework.cache import UnconstrainedCache, SlidingCache
 
-#cache: UnconstrainedCache[int] = UnconstrainedCache()
+# Shared SlidingCache for BeeAI (currently not actively used for chat responses,
+# but available for future caching if needed).
 cache: SlidingCache[int] = SlidingCache(
-    size=100  # (required) number of items that can be live in the cache at a single moment
+    size=100  # number of items that can be live in the cache at a single moment
 )
-cache.clear()
 
 # Configure logging
 logger = setup_logging('chat')
@@ -106,15 +106,42 @@ agent_handler: Optional[Union[MultiAgentOrchestrator, SingleAgentHandler]] = Non
 # Agent mode configuration
 AGENT_MODE = os.environ.get("AGENT_MODE", "single").lower()  # "multi" or "single"
 
-# Model configuration - supports any provider (Anthropic, Ollama, OpenAI, etc.)
-# Format: "provider:model-name" or just "model-name" for default provider
-CHAT_MODEL = os.environ.get("CHAT_MODEL", "anthropic:claude-sonnet-4-20250514")
-ORCHESTRATOR_MODEL = os.environ.get("ORCHESTRATOR_MODEL", CHAT_MODEL)  # Can use different model for routing (multi-agent only)
+# Model configuration - supports multiple providers (Anthropic, Ollama, OpenAI, etc.)
+# Expected BeeAI format: "provider:model-name" (e.g., "ollama:llama3.2:1b").
+
+RAW_CHAT_MODEL = os.environ.get("CHAT_MODEL", "anthropic:claude-sonnet-4-20250514")
+RAW_ORCHESTRATOR_MODEL = os.environ.get("ORCHESTRATOR_MODEL")
+
+
+def _normalize_model_name(name: str) -> str:
+    """Normalize model name into BeeAI's provider:model format.
+    
+    Handles legacy forms like "ollama/llama3.2:1b" by converting them to
+    "ollama:llama3.2:1b" so that BeeAI's ChatModel.from_name can parse them.
+    """
+    if not name:
+        return name
+
+    if ":" in name:
+        provider, _rest = name.split(":", 1)
+        if provider in {"anthropic", "openai", "ollama", "gpt-oss"}:
+            return name
+
+    if name.startswith("ollama/"):
+        normalized = "ollama:" + name[len("ollama/") :]
+        logger.info(f"Normalized chat model from '{name}' to '{normalized}' for BeeAI backend")
+        return normalized
+
+    return name
+
+
+CHAT_MODEL = _normalize_model_name(RAW_CHAT_MODEL)
+ORCHESTRATOR_MODEL = _normalize_model_name(RAW_ORCHESTRATOR_MODEL or CHAT_MODEL)
 
 logger.info(f"Agent mode: {AGENT_MODE}")
-logger.info(f"Chat model configuration: {CHAT_MODEL}")
+logger.info(f"Chat model configuration: {CHAT_MODEL} (raw='{RAW_CHAT_MODEL}')")
 if AGENT_MODE == "multi":
-    logger.info(f"Orchestrator model configuration: {ORCHESTRATOR_MODEL}")
+    logger.info(f"Orchestrator model configuration: {ORCHESTRATOR_MODEL} (raw='{RAW_ORCHESTRATOR_MODEL}')")
 
 def setup_observability() -> None:
     """Setup observability using OpenInference BeeAI instrumentation with OTLP."""

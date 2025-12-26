@@ -114,6 +114,10 @@ services:
       - ./logs:/app/logs
       - ./config:/app/config:ro
     restart: unless-stopped
+    ulimits:
+      nofile:
+        soft: 4096
+        hard: 8192
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8100/health"]
       interval: 30s

@@ -70,29 +70,34 @@
           "type": [
             "integer",
             "number"
-          ]
+          ],
+          "minimum": 0,
+          "maximum": 10,
+          "description": "academic performance score (0-10 points)"
         },
         "academic_relevance_score": {
           "type": [
             "integer",
             "number"
-          ]
+          ],
+          "minimum": 0,
+          "maximum": 10,
+          "description": "academic relevance score (0-10 points)"
         },
         "academic_readiness_score": {
           "type": [
             "integer",
             "number"
-          ]
-        },
-        "overall_score": {
-          "type": [
-            "integer",
-            "number"
-          ]
+          ],
+          "minimum": 0,
+          "maximum": 10,
+          "description": "academic readiness score (0-10 points)"
         }
       },
       "required": [
-        "overall_score"
+        "academic_performance_score",
+        "academic_relevance_score",
+        "academic_readiness_score"
       ]
     },
     "score_breakdown": {

@@ -44,10 +44,9 @@ async def get_application_analysis(
             raise HTTPException(status_code=404, detail=f"Application {wai_number} not found")
         
         return ApplicationAnalysisResponse(**analysis)
-    except HTTPException:
-        raise
+    
     except Exception as e:
-        logger.error(f"Error getting application analysis for {wai_number}: {e}")
+        logger.exception("Error getting application analysis for %s", wai_number)
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -76,10 +75,9 @@ async def get_academic_analysis(
             )
         
         return AcademicAnalysisResponse(**analysis)
-    except HTTPException:
-        raise
+  
     except Exception as e:
-        logger.error(f"Error getting academic analysis for {wai_number}: {e}")
+        logger.exception("Error getting academic analysis for %s", wai_number)
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -108,10 +106,9 @@ async def get_essay_analysis(
             )
         
         return combined
-    except HTTPException:
-        raise
+   
     except Exception as e:
-        logger.error(f"Error getting essay analysis for {wai_number}: {e}")
+        logger.exception("Error getting essay analysis for %s", wai_number)
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -145,10 +142,9 @@ async def get_single_essay_analysis(
             )
         
         return EssayAnalysisResponse(**analysis)
-    except HTTPException:
-        raise
+    
     except Exception as e:
-        logger.error(f"Error getting essay {essay_number} analysis for {wai_number}: {e}")
+        logger.exception("Error getting essay %d analysis for %s", essay_number, wai_number)
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -177,10 +173,9 @@ async def get_recommendation_analysis(
             )
         
         return combined
-    except HTTPException:
-        raise
+    
     except Exception as e:
-        logger.error(f"Error getting recommendation analysis for {wai_number}: {e}")
+        logger.exception("Error getting recommendation analysis for %s", wai_number)
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -214,10 +209,9 @@ async def get_single_recommendation_analysis(
             )
         
         return RecommendationAnalysisResponse(**analysis)
-    except HTTPException:
-        raise
+  
     except Exception as e:
-        logger.error(f"Error getting recommendation {rec_number} analysis for {wai_number}: {e}")
+        logger.exception("Error getting recommendation %d analysis for %s", rec_number, wai_number)
         raise HTTPException(status_code=500, detail=str(e))
 
 # Made with Bob

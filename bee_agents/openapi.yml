@@ -4,9 +4,6 @@ info:
   description: REST API for accessing scholarship application analysis data with multi-tenancy
     support
   version: 2.0.0
-servers:
-- url: http://localhost:8200
-  description: Development server (default port)
 paths:
   /:
     get:
@@ -739,6 +736,198 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
+  /reviews:
+    post:
+      tags:
+      - Reviews
+      summary: Submit Review
+      description: 'Submit or update a review for a specific applicant.
+
+
+        The caller must be an authenticated reviewer with access to the
+
+        specified scholarship. Scholarship and WAI number are provided as
+
+        query parameters. Subsequent calls for the same (reviewer, WAI)
+
+        will overwrite the existing review file, preserving the original
+
+        `created_at` timestamp.'
+      operationId: submit_review
+      parameters:
+      - name: scholarship
+        in: query
+        required: true
+        schema:
+          type: string
+          description: Scholarship identifier (e.g., 'Delaney_Wings')
+          title: Scholarship
+        description: Scholarship identifier (e.g., 'Delaney_Wings')
+      - name: wai_number
+        in: query
+        required: true
+        schema:
+          type: string
+          description: WAI application number
+          title: Wai Number
+        description: WAI application number
+      - name: token_query
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          description: Optional authentication token passed as a query parameter (used
+            when the client cannot set Authorization headers).
+          title: Token Query
+        description: Optional authentication token passed as a query parameter (used
+          when the client cannot set Authorization headers).
+      - name: authorization
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          description: Bearer authentication token issued by chat auth service
+          title: Authorization
+        description: Bearer authentication token issued by chat auth service
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/Body_submit_review'
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReviewResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+      security:
+      - bearerAuth: []
+  /reviews/me:
+    get:
+      tags:
+      - Reviews
+      summary: List My Reviews
+      description: 'List all reviews submitted by the current reviewer.
+
+
+        If a scholarship is provided, only reviews for that scholarship are returned.
+
+        Otherwise, reviews are returned for all scholarships the reviewer has access
+        to.'
+      operationId: list_my_reviews
+      parameters:
+      - name: scholarship
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          description: Optional scholarship filter (e.g., 'Delaney_Wings')
+          title: Scholarship
+        description: Optional scholarship filter (e.g., 'Delaney_Wings')
+      - name: token_query
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          description: Optional authentication token passed as a query parameter (used
+            when the client cannot set Authorization headers).
+          title: Token Query
+        description: Optional authentication token passed as a query parameter (used
+          when the client cannot set Authorization headers).
+      - name: authorization
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          description: Bearer authentication token issued by chat auth service
+          title: Authorization
+        description: Bearer authentication token issued by chat auth service
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReviewListResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+      security:
+      - bearerAuth: []
+  /reviews/final_csv:
+    post:
+      tags:
+      - Reviews
+      - Reviews
+      summary: Generate Final Reviews Csv Endpoint
+      description: "Generate a CSV summarizing all reviewer scores for a scholarship.\n\
+        \nThe CSV is written to:\n\n    outputs/{Scholarship}/reviews/final_reviews_summary.csv\n\
+        \nRows are sorted by `final_total_score` (average reviewer score) descending."
+      operationId: generate_final_reviews_csv
+      parameters:
+      - name: scholarship
+        in: query
+        required: true
+        schema:
+          type: string
+          description: Scholarship identifier (e.g., 'Delaney_Wings')
+          title: Scholarship
+        description: Scholarship identifier (e.g., 'Delaney_Wings')
+      - name: token_query
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          description: Optional authentication token passed as a query parameter (used
+            when the client cannot set Authorization headers).
+          title: Token Query
+        description: Optional authentication token passed as a query parameter (used
+          when the client cannot set Authorization headers).
+      - name: authorization
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          description: Bearer authentication token issued by chat auth service
+          title: Authorization
+        description: Bearer authentication token issued by chat auth service
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
   /favicon.ico:
     get:
       summary: Favicon
@@ -1086,6 +1275,22 @@ components:
       - source_file
       title: ApplicationAnalysisResponse
       description: Response model for application analysis.
+    Body_submit_review:
+      properties:
+        score:
+          type: integer
+          title: Score
+          description: Reviewer score from 1 (lowest) to 10 (highest)
+        comments:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Comments
+          description: Optional free-text review comments
+      type: object
+      required:
+      - score
+      title: Body_submit_review
     EssayAnalysisResponse:
       properties:
         wai_number:
@@ -1187,6 +1392,78 @@ components:
       - processed_date
       title: RecommendationAnalysisResponse
       description: Response model for recommendation analysis.
+    ReviewListResponse:
+      properties:
+        reviewer_username:
+          type: string
+          title: Reviewer Username
+          description: Reviewer username
+        reviewer_initials:
+          type: string
+          title: Reviewer Initials
+          description: Reviewer initials
+        reviews:
+          items:
+            $ref: '#/components/schemas/ReviewResponse'
+          type: array
+          title: Reviews
+          description: List of reviews submitted by this reviewer
+      type: object
+      required:
+      - reviewer_username
+      - reviewer_initials
+      - reviews
+      title: ReviewListResponse
+      description: Response model for listing all reviews by the current reviewer.
+    ReviewResponse:
+      properties:
+        scholarship:
+          type: string
+          title: Scholarship
+          description: Scholarship identifier (e.g., 'Delaney_Wings')
+        wai_number:
+          type: string
+          title: Wai Number
+          description: WAI application number
+        reviewer_username:
+          type: string
+          title: Reviewer Username
+          description: Reviewer username
+        reviewer_initials:
+          type: string
+          title: Reviewer Initials
+          description: Reviewer initials used for file storage
+        score:
+          type: integer
+          maximum: 10.0
+          minimum: 1.0
+          title: Score
+          description: "Reviewer score from 1\u201310"
+        comments:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Comments
+          description: Optional reviewer comments
+        created_at:
+          type: string
+          title: Created At
+          description: ISO 8601 timestamp when the review was first created
+        updated_at:
+          type: string
+          title: Updated At
+          description: ISO 8601 timestamp when the review was last updated
+      type: object
+      required:
+      - scholarship
+      - wai_number
+      - reviewer_username
+      - reviewer_initials
+      - score
+      - created_at
+      - updated_at
+      title: ReviewResponse
+      description: Response model for an individual reviewer score.
     ScoreResponse:
       properties:
         wai_number:
@@ -1334,3 +1611,12 @@ components:
       - msg
       - type
       title: ValidationError
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: Use 'Bearer &lt;token&gt;' from the chat /login endpoint.
+servers:
+- url: http://localhost:8200
+  description: Development server (default port)

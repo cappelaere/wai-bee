@@ -33,6 +33,7 @@ import time
 from fastapi_cache import FastAPICache
 from fastapi_cache.backends.redis import RedisBackend
 from fastapi_cache.decorator import cache
+from fastapi.openapi.utils import get_openapi
 from redis import asyncio as aioredis
 
 from .data_service import DataService
@@ -54,7 +55,8 @@ from .api_routers import (
     scores_router,
     analysis_router,
     criteria_router,
-    admin_router
+    admin_router,
+    reviews_router,
 )
 
 # Configure logging
@@ -88,8 +90,8 @@ def load_available_scholarships() -> List[str]:
         
         logger.info(f"Loaded {len(available)} available scholarships from config")
         return available
-    except Exception as e:
-        logger.error(f"Error loading scholarships from config: {e}")
+    except Exception:
+        logger.exception("Error loading scholarships from config")
         return ["Delaney_Wings", "Evans_Wings"]
 
 
@@ -112,8 +114,8 @@ async def lifespan(app: FastAPI):
         redis = aioredis.from_url(redis_url, encoding="utf8", decode_responses=False)
         FastAPICache.init(RedisBackend(redis), prefix="fastapi-cache")
         logger.info(f"Redis cache initialized at {redis_url}")
-    except Exception as e:
-        logger.warning(f"Failed to initialize Redis cache: {e}. Caching will be disabled.")
+    except Exception:
+        logger.exception("Failed to initialize Redis cache. Caching will be disabled.")
     
     yield
     # Shutdown (if needed in the future)
@@ -154,8 +156,63 @@ app.include_router(scores_router)
 app.include_router(analysis_router)
 app.include_router(criteria_router)
 app.include_router(admin_router)
+app.include_router(reviews_router)
 
 logger.info("Modular API routers integrated successfully")
+
+
+def custom_openapi():
+    """Customize OpenAPI schema with bearerAuth and secure review endpoints."""
+    if app.openapi_schema:
+        return app.openapi_schema
+
+    openapi_schema = get_openapi(
+        title=app.title,
+        version=app.version,
+        description=app.description,
+        routes=app.routes,
+    )
+
+    # Ensure servers are defined so OpenAPI-based tools know where to call.
+    # This is important for the BeeAI OpenAPITool, which requires at least
+    # one server URL.
+    servers = openapi_schema.get("servers")
+    if not servers:
+        openapi_schema["servers"] = [
+            {
+                "url": "http://localhost:8200",
+                "description": "Development server (default port)",
+            }
+        ]
+
+    components = openapi_schema.setdefault("components", {})
+    security_schemes = components.setdefault("securitySchemes", {})
+
+    # Define HTTP Bearer auth scheme
+    security_schemes["bearerAuth"] = {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT",
+        "description": "Use 'Bearer &lt;token&gt;' from the chat /login endpoint.",
+    }
+
+    # Mark review endpoints as requiring bearer auth
+    paths = openapi_schema.get("paths", {})
+    for path, methods in paths.items():
+        if path in ("/reviews", "/reviews/me"):
+            for method, operation in methods.items():
+                if method.lower() in {"get", "post", "put", "delete", "patch", "options", "head"}:
+                    security = operation.get("security") or []
+                    # Avoid duplicating bearerAuth entries if regeneration happens
+                    if not any("bearerAuth" in s for s in security):
+                        security.append({"bearerAuth": []})
+                    operation["security"] = security
+
+    app.openapi_schema = openapi_schema
+    return app.openapi_schema
+
+
+app.openapi = custom_openapi
 
 
 # Middleware for request logging
@@ -205,8 +262,8 @@ def initialize_services(base_output_dir: str = "outputs"):
         try:
             data_services[scholarship_name] = DataService(scholarship_name, base_output_dir)
             logger.info(f"API initialized for scholarship: {scholarship_name}")
-        except Exception as e:
-            logger.warning(f"Failed to initialize data service for {scholarship_name}: {e}")
+        except Exception:
+            logger.exception("Failed to initialize data service for %s", scholarship_name)
     
     if not data_services:
         raise ValueError("No data services could be initialized")
@@ -262,10 +319,9 @@ async def get_scholarship_info(
             )
         
         return scholarship_info
-    except HTTPException:
-        raise
+
     except Exception as e:
-        logger.error(f"Error getting scholarship info: {e}")
+        logger.exception(f"Error getting scholarship info for {scholarship}")
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -373,10 +429,9 @@ async def list_attachments(
             "files": result["files"],
             "processing_summary": result["processing_summary"]
         }
-    except HTTPException:
-        raise
+
     except Exception as e:
-        logger.error(f"Error listing attachments for {wai_number}: {e}")
+        logger.exception("Error listing attachments for %s", wai_number)
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -578,10 +633,9 @@ async def download_text_attachment(
         
         return HTMLResponse(content=html_content)
         
-    except HTTPException:
-        raise
+  
     except Exception as e:
-        logger.error(f"Error rendering text file {filename} for {wai_number}: {e}")
+        logger.exception("Error rendering text file %s for %s", filename, wai_number)
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -616,10 +670,9 @@ async def download_attachment(
             filename=filename,
             media_type="application/pdf"
         )
-    except HTTPException:
-        raise
+
     except Exception as e:
-        logger.error(f"Error downloading attachment {filename} for {wai_number}: {e}")
+        logger.exception("Error downloading attachment %s for %s", filename, wai_number)
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -664,13 +717,12 @@ async def get_agents_config(
             config = json.load(f)
         
         return config
-    except HTTPException:
-        raise
+ 
     except json.JSONDecodeError as e:
         logger.error(f"Error parsing agents.json: {e}")
         raise HTTPException(status_code=500, detail="Invalid agent configuration file")
     except Exception as e:
-        logger.error(f"Error getting agent configuration: {e}")
+        logger.exception("Error getting agent configuration for %s", data_service.scholarship_name)
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -719,13 +771,12 @@ async def get_agent_config(
             "scholarship": data_service.scholarship_name,
             "agent": agent
         }
-    except HTTPException:
-        raise
+    
     except json.JSONDecodeError as e:
-        logger.error(f"Error parsing agents.json: {e}")
+        logger.exception(f"Error parsing agents.json: {e}")
         raise HTTPException(status_code=500, detail="Invalid agent configuration file")
     except Exception as e:
-        logger.error(f"Error getting agent configuration: {e}")
+        logger.exception("Error getting agent configuration for %s", data_service.scholarship_name)
         raise HTTPException(status_code=500, detail=str(e))
 
 

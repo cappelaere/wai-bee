@@ -149,15 +149,15 @@ class EssayAgent:
                     
                     if is_valid:
                         analysis_data = fixed_data
-                        self.logger.info(f"  ✓ Validation successful")
+                        #self.logger.info(f"  ✓ Validation successful")
                         break
                     else:
                         self.logger.warning(f"  Validation failed: {len(errors)} errors")
                         if attempt < max_retries - 1:
                             current_model = fallback_model
                         
-                except Exception as e:
-                    self.logger.error(f"  Error in analysis attempt: {str(e)}")
+                except Exception:
+                    self.logger.exception(f"  Error in analysis attempt {attempt} for {wai_number}")
                     if attempt < max_retries - 1:
                         current_model = fallback_model
             
@@ -166,15 +166,26 @@ class EssayAgent:
                 return None
             
             # Create EssayData object
+            scores=analysis_data.get("scores", {})
+           
+            # Calculate from component scores
+            overall = (
+                scores.get('motivation_score', 0) +
+                scores.get('goals_clarity_score', 0) +
+                scores.get('character_service_leadership_score', 0)
+            )
+            scores['overall_score'] = int(overall)
+            self.logger.debug(f"Calculated essay overall_score: {scores['overall_score']}")
+            
             essay_data = EssayData(
                 wai_number=wai_number,
                 summary=analysis_data.get("summary", "Unknown"),
                 profile_features=analysis_data.get("profile_features", {}),
-                scores=analysis_data.get("scores", {}),
                 score_breakdown=analysis_data.get("score_breakdown", {}),
                 source_files=source_files,
                 model_used=current_model,
-                criteria_used=str(criteria_path)
+                criteria_used=str(criteria_path),
+                scores=scores
             )
             
             # Save to output directory if provided
@@ -187,9 +198,9 @@ class EssayAgent:
             
             return essay_data
             
-        except Exception as e:
+        except Exception:
             duration = time.time() - start_time
-            self.logger.error(f"Error analyzing essays for WAI {wai_number}: {e}", exc_info=True)
+            self.logger.exception(f"Error analyzing essays for WAI {wai_number}")
             self.logger.info(f"Failed after {duration:.2f}s")
             return None
     
@@ -333,8 +344,8 @@ class EssayAgent:
                 else:
                     skipped += 1
                     
-            except Exception as e:
-                self.logger.error(f"Failed to process WAI {wai_number}: {e}")
+            except Exception:
+                self.logger.exception(f"Failed to process WAI {wai_number}")
                 failed += 1
         
         duration = time.time() - start_time

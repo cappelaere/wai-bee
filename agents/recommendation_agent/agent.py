@@ -28,7 +28,7 @@ Attributes:
 """
 
 import json
-import logging
+import logging, traceback
 import os
 import time
 from pathlib import Path
@@ -259,8 +259,7 @@ class RecommendationAgent:
                     
             except Exception as e:
                 failed += 1
-                error_msg = f"Unexpected error processing {wai_number}: {str(e)}"
-                logger.error(f"  ✗ {error_msg}")
+                logger.exception(f"Unexpected error processing {wai_number}")
                 errors.append(ProcessingError(
                     wai_number=wai_number,
                     error_type=type(e).__name__,
@@ -387,15 +386,15 @@ class RecommendationAgent:
                     
                     if is_valid:
                         analysis_data = fixed_data
-                        logger.info(f"  ✓ Validation successful")
+                        #logger.info(f"  ✓ Validation successful")
                         break
                     else:
                         logger.warning(f"  Validation failed: {len(errors)} errors")
                         if attempt < max_retries - 1:
                             current_model = fallback_model
                         
-                except Exception as e:
-                    logger.error(f"  Error in analysis attempt: {str(e)}")
+                except Exception:
+                    logger.exception(f" in analysis attempt {attempt} for {wai_number}")
                     if attempt < max_retries - 1:
                         current_model = fallback_model
             
@@ -404,15 +403,25 @@ class RecommendationAgent:
                 return None
             
             # Create RecommendationData object
+            scores=analysis_data.get("scores", {})  
+            # Calculate from component scores
+            overall = (
+                scores.get('average_support_strength_score', 0) +
+                scores.get('consistency_of_support_score', 0) +
+                scores.get('depth_of_endorsement_score', 0)
+            )
+            scores['overall_score'] = int(overall)
+            logger.debug(f"Calculated recommendation overall_score: {scores['overall_score']}")
+            
             rec_data = RecommendationData(
                 wai_number=wai_number,
                 summary=analysis_data.get("summary", ""),
                 profile_features=analysis_data.get("profile_features", {}),
-                scores=analysis_data.get("scores", {}),
                 score_breakdown=analysis_data.get("score_breakdown", {}),
                 source_files=source_files,
                 model_used=current_model,
-                criteria_used=criteria_path
+                criteria_used=criteria_path,
+                scores=scores
             )
             
             # Save to JSON
@@ -425,8 +434,8 @@ class RecommendationAgent:
             
             return rec_data
             
-        except Exception as e:
-            logger.error(f"  Error processing {wai_number}: {str(e)}")
+        except Exception:
+            logger.exception(f"  Error processing recommendation agent: {wai_number}")
             return None
     
     def _analyze_with_llm(
@@ -489,8 +498,8 @@ class RecommendationAgent:
             logger.debug(f"  Saved analysis to: {output_path}")
             return True
             
-        except Exception as e:
-            logger.error(f"  Error saving JSON: {str(e)}")
+        except Exception:
+            logger.exception("  Error saving JSON")
             return False
 
 

@@ -40,10 +40,10 @@ Your task is to analyze these personal essays and extract key information about 
 6. Unique strengths and qualities
 
 SCORING GUIDELINES:
-- motivation_score (0-100): Assess passion for aviation, commitment to the field, and genuine interest
-- goals_clarity_score (0-100): Evaluate clarity of career goals, realistic planning, and vision
-- character_service_leadership_score (0-100): Assess character traits, community involvement, and leadership
-- overall_score (0-100): Holistic assessment of personal profile
+- motivation_score (0-10): Assess passion for aviation, commitment to the field, and genuine interest
+- goals_clarity_score (0-10): Evaluate clarity of career goals, realistic planning, and vision
+- character_service_leadership_score (0-10): Assess character traits, community involvement, and leadership
+- overall_score (0-10): Holistic assessment of personal profile
 
 Provide detailed reasoning for each score in the score_breakdown section.
 
@@ -62,10 +62,9 @@ You MUST respond with ONLY valid JSON matching this exact structure:
     "unique_strengths": ["List of unique strengths, experiences, or qualities"]
   }},
   "scores": {{
-    "motivation_score": 85,
-    "goals_clarity_score": 80,
-    "character_service_leadership_score": 90,
-    "overall_score": 85
+    "motivation_score": 8,
+    "goals_clarity_score": 8,
+    "character_service_leadership_score": 9
   }},
   "score_breakdown": {{
     "motivation_score_reasoning": "Detailed explanation for motivation score",
@@ -122,14 +121,12 @@ Required JSON structure:
   "scores": {{
     "motivation_score": 0,
     "goals_clarity_score": 0,
-    "character_service_leadership_score": 0,
-    "overall_score": 0
+    "character_service_leadership_score": 0
   }},
   "score_breakdown": {{
     "motivation_score_reasoning": "string",
     "goals_clarity_score_reasoning": "string",
-    "character_service_leadership_score_reasoning": "string",
-    "overall_score_reasoning": "string"
+    "character_service_leadership_score_reasoning": "string"
   }}
 }}"""
 

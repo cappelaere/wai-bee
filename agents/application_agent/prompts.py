@@ -128,11 +128,11 @@ SCORING CRITERIA:
 {criteria}
 
 EVALUATION INSTRUCTIONS:
-1. COMPLETENESS (0-30): All required fields above are present. Score based on data quality, not presence.
+1. COMPLETENESS (0-10): All required fields above are present. Score based on data quality, not presence.
    - For non-US applicants, "N/A" or null state is CORRECT and should NOT be penalized
-2. VALIDITY (0-30): Evaluate if the data format and values are valid and properly formatted.
+2. VALIDITY (0-10): Evaluate if the data format and values are valid and properly formatted.
    - State should only be validated for US applicants
-3. ATTACHMENTS (0-40): Score based on the number and validity of attachment files found.
+3. ATTACHMENTS (0-10): Score based on the number and validity of attachment files found.
    - Only evaluate based on the filenames provided above
    - Do NOT comment on missing labels, descriptions, or other metadata
 
@@ -148,10 +148,9 @@ Provide your evaluation in the following JSON format:
 {{
   "summary": "Brief summary of application quality",
   "scores": {{
-    "completeness_score": 0-30,
-    "validity_score": 0-30,
-    "attachment_score": 0-40,
-    "overall_score": 0-100
+    "completeness_score": 0-10,
+    "validity_score": 0-10,
+    "attachment_score": 0-10,
   }},
   "score_breakdown": {{
     "completeness_reasoning": "Explanation of completeness score based on data quality",

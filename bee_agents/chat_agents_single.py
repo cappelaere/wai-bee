@@ -30,9 +30,8 @@ from .logging_config import setup_logging
 
 logger = setup_logging('chat_agents_single')
 
-# Shared cache for response caching across all instances
+# Shared cache for response caching across all instances (not actively used yet)
 response_cache: SlidingCache[str] = SlidingCache(size=100)
-response_cache.clear()
 
 
 class SingleAgentHandler:
@@ -79,7 +78,8 @@ class SingleAgentHandler:
         
         # Create tools from OpenAPI schema
         # TODO Should we add ThinkTool() to the tools to reason
-        tools = OpenAPITool.from_schema(open_api_schema)
+        self.open_api_schema = open_api_schema
+        tools = OpenAPITool.from_schema(self.open_api_schema)
         logger.info(f"Single agent: Loaded {len(tools)} OpenAPI tools")
         
         # Create comprehensive instructions for the single agent
@@ -199,14 +199,11 @@ When calling API endpoints, always use the scholarship parameter provided in the
             })
             return None
         
-        logger.info(
-            f"WebSocket authenticated: {token_data['username']}",
-            extra={
-                "username": token_data["username"],
-                "role": token_data["role"],
-                "scholarships": token_data["scholarships"]
-            }
-        )
+        # Attach raw token (which may be empty) so downstream logic can forward it
+        token_data.setdefault("token", auth_token or "")
+        
+        logger.info(f"WebSocket authenticated: {token_data['username']}")
+        logger.info(f"WebSocket token: {token_data['token']}")
         
         return token_data
     
@@ -261,6 +258,7 @@ When calling API endpoints, always use the scholarship parameter provided in the
         scholarship_context = f"""
 User Context:
 - Username: {token_data['username']}
+- token: {token_data['token']}
 - Role: {token_data['role']}
 - Scholarship: {selected_scholarship}
 - Permissions: {', '.join(token_data['permissions'])}
@@ -280,10 +278,7 @@ If the user asks about other scholarships, politely inform them they don't have 
             "message_length": len(user_message),
             "timestamp": time.time()
         }
-        logger.info(
-            "Processing chat message",
-            extra=log_context
-        )
+        logger.info("Processing chat message")
         
         # Metrics: Track execution time
         start_time = time.time()
@@ -316,6 +311,8 @@ If the user asks about other scholarships, politely inform them they don't have 
                     })
                     return
                 
+                auth_headers = {"Authorization": f"Bearer {token_data['token']}"}
+
                 agent_run = self.agent.run(contextualized_message)
                 
                 # Execute with timeout
@@ -377,14 +374,14 @@ If the user asks about other scholarships, politely inform them they don't have 
             })
         except (AttributeError, RuntimeError) as e:
             execution_time = time.time() - start_time
-            logger.error(f"Invalid response structure for {username}: {e}")
+            logger.exception(f"Invalid response structure for {username}: {e}")
             await websocket.send_json({
                 "type": "error",
                 "message": "An error occurred processing your request. Please try again."
             })
         except Exception as e:
             execution_time = time.time() - start_time
-            logger.error(f"Error processing message for {username}: {e}")
+            logger.exception(f"Error processing message for {username}")
             await websocket.send_json({
                 "type": "error",
                 "message": str(e)

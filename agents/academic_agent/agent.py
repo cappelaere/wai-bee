@@ -28,7 +28,7 @@ Attributes:
 """
 
 import json
-import logging
+import logging, traceback
 import os
 import time
 from pathlib import Path
@@ -249,8 +249,7 @@ class AcademicAgent:
                     
             except Exception as e:
                 failed += 1
-                error_msg = f"Unexpected error processing {wai_number}: {str(e)}"
-                logger.error(f"  ✗ {error_msg}")
+                logger.exception(f"  ✗ Unexpected error processing {wai_number}")
                 errors.append(ProcessingError(
                     wai_number=wai_number,
                     error_type=type(e).__name__,
@@ -347,7 +346,7 @@ class AcademicAgent:
                     )
                     
                     if is_valid and fixed_data:
-                        logger.info(f"  ✓ Validation successful")
+                        #logger.info(f"  ✓ Validation successful")
                         break
                     else:
                         logger.warning(f"  Validation failed: {error_msg}")
@@ -355,21 +354,33 @@ class AcademicAgent:
                             logger.error(f"  Max retries reached, using default values")
                             return None
                         
-                except Exception as e:
-                    logger.error(f"  Attempt {attempt} failed: {str(e)}")
+                except Exception:
+                    logger.exception(f"  Attempt {attempt} failed for {wai_number}")
                     if attempt == max_retries:
                         return None
             
             # Create AcademicData object
+            scores = fixed_data.get("scores", {})
+            logger.info(f"Academic Scores: {scores}")
+           
+            # Calculate from component scores
+            overall = (
+                scores.get('academic_performance_score', 0) +
+                scores.get('academic_relevance_score', 0) +
+                scores.get('academic_readiness_score', 0)
+            )
+            scores['overall_score'] = int(overall)
+            logger.debug(f"Calculated academic overall_score: {scores['overall_score']}")
+            
             academic_data = AcademicData(
                 wai_number=wai_number,
                 summary=fixed_data.get("summary", "Unknown"),
                 profile_features=fixed_data.get("profile_features", {}),
-                scores=fixed_data.get("scores", {}),
+                scores=scores,
                 score_breakdown=fixed_data.get("score_breakdown", {}),
                 source_file=resume_file.name,
                 model_used=current_model,
-                criteria_used=criteria_path
+                criteria_used=criteria_path,
             )
             
             # Save to JSON
@@ -381,9 +392,9 @@ class AcademicAgent:
             self._save_json(academic_data, output_path)
             
             return academic_data
-            
-        except Exception as e:
-            logger.error(f"  Error processing {wai_number}: {str(e)}")
+
+        except Exception:
+            logger.exception(f"  Error processing academic agent: {wai_number}")
             return None
     
     def _analyze_with_llm(
@@ -446,8 +457,8 @@ class AcademicAgent:
             logger.debug(f"  Saved analysis to: {output_path}")
             return True
             
-        except Exception as e:
-            logger.error(f"  Error saving JSON: {str(e)}")
+        except Exception:
+            logger.exception("  Error saving JSON")
             return False
 
 

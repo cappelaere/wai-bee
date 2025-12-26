@@ -91,8 +91,8 @@ async def update_scholarship_weights(
             shutil.copy2(config_path, backup_path)
         with open(config_path, "w", encoding="utf-8") as f:
             yaml.safe_dump(config, f, sort_keys=False, allow_unicode=True)
-    except Exception as e:
-        logger.error(f"Failed to write updated weights for {scholarship}: {e}")
+    except Exception:
+        logger.exception("Failed to write updated weights for %s", scholarship)
         raise HTTPException(status_code=500, detail="Failed to save updated weights")
 
     # Regenerate artifacts (criteria/*.txt, etc.)
@@ -101,8 +101,8 @@ async def update_scholarship_weights(
 
         root = Path(__file__).resolve().parents[2]
         generate_main([str(root / "scripts/generate_scholarship_artifacts.py"), scholarship])
-    except Exception as e:
-        logger.error(f"Failed to regenerate artifacts for {scholarship}: {e}")
+    except Exception:
+        logger.exception("Failed to regenerate artifacts for %s", scholarship)
         raise HTTPException(status_code=500, detail="Weights saved but artifact regeneration failed")
 
     return {"status": "ok", "updated_agents": list(new_weights.keys())}
@@ -174,8 +174,8 @@ async def update_agent_criteria(
             shutil.copy2(config_path, backup_path)
         with open(config_path, "w", encoding="utf-8") as f:
             yaml.safe_dump(config, f, sort_keys=False, allow_unicode=True)
-    except Exception as e:
-        logger.error(f"Failed to write updated criteria for {scholarship}: {e}")
+    except Exception:
+        logger.exception("Failed to write updated criteria for %s", scholarship)
         raise HTTPException(status_code=500, detail="Failed to save updated criteria")
 
     # Regenerate artifacts (criteria/*.txt, etc.)
@@ -184,8 +184,8 @@ async def update_agent_criteria(
 
         root = Path(__file__).resolve().parents[2]
         generate_main([str(root / "scripts/generate_scholarship_artifacts.py"), scholarship])
-    except Exception as e:
-        logger.error(f"Failed to regenerate artifacts for {scholarship}: {e}")
+    except Exception:
+        logger.exception("Failed to regenerate artifacts for %s", scholarship)
         raise HTTPException(status_code=500, detail="Criteria saved but artifact regeneration failed")
 
     return {"status": "ok", "agent": agent_name}
@@ -261,8 +261,8 @@ async def regenerate_agent_criteria_with_llm(
             return result.last_message.text if result and result.last_message else ""
 
         new_text = asyncio.run(_run())
-    except Exception as e:
-        logger.error(f"Failed to regenerate criteria with LLM for {scholarship}/{agent_name}: {e}")
+    except Exception:
+        logger.exception("Failed to regenerate criteria with LLM for %s/%s", scholarship, agent_name)
         raise HTTPException(status_code=500, detail="LLM criteria generation failed")
 
     if not new_text or len(new_text) < 100:

@@ -107,10 +107,9 @@ Based on the recommendation letters{', and the additional criteria provided abov
         }}
     }},
     "scores": {{
-        "average_support_strength_score": <integer 0-100, required>,
-        "consistency_of_support_score": <integer 0-100, required>,
-        "depth_of_endorsement_score": <integer 0-100, required>,
-        "overall_score": <integer 0-100, required>
+        "average_support_strength_score": <integer 0-10, required>,
+        "consistency_of_support_score": <integer 0-10, required>,
+        "depth_of_endorsement_score": <integer 0-10, required>
     }},
     "score_breakdown": {{
         "average_support_strength_score_reasoning": "Explanation of average support strength score",
@@ -126,7 +125,7 @@ CRITICAL JSON FORMAT REQUIREMENTS:
 - Do NOT include comments or explanations
 - Do NOT use trailing commas
 - Do NOT use single quotes (use double quotes only)
-- All scores must be integers between 0 and 100
+- All scores must be integers between 0 and 10
 - The response must be parseable by json.loads() without any preprocessing"""
 
     return prompt

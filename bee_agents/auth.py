@@ -10,14 +10,22 @@ License: MIT
 """
 
 import os, secrets, json
+import logging
 from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Optional, Dict, List
 from pydantic import BaseModel
 from dotenv import load_dotenv
 
+try:
+    from redis import Redis  # type: ignore
+except Exception:  # pragma: no cover - redis may not be installed in some envs
+    Redis = None  # type: ignore
+
 # Load environment variables from .env file
 load_dotenv()
+
+logger = logging.getLogger(__name__)
 
 def _load_users() -> Dict[str, str]:
     """Load user credentials from environment variables.
@@ -55,8 +63,90 @@ def _load_users() -> Dict[str, str]:
 
 USERS = _load_users()
 
-# Store active tokens (in production, use Redis or database)
+# Store active tokens in-memory as a fallback when Redis is not available.
+# For cross-service token sharing, Redis is used when configured.
 active_tokens: Dict[str, Dict] = {}
+
+_redis_client: Optional["Redis"] = None
+
+
+def _get_redis_client() -> Optional["Redis"]:
+    """Lazily create and return a Redis client if REDIS_URL is configured."""
+    global _redis_client
+    if _redis_client is not None:
+        return _redis_client
+
+    if Redis is None:
+        return None
+
+    redis_url = os.environ.get("REDIS_URL")
+    if not redis_url:
+        return None
+
+    try:
+        _redis_client = Redis.from_url(redis_url, decode_responses=True)
+        # Test connection
+        _redis_client.ping()
+        logger.info("Auth module connected to Redis for shared token storage")
+    except Exception as e:
+        logger.warning(f"Auth module could not connect to Redis at {redis_url}: {e}")
+        _redis_client = None
+
+    return _redis_client
+
+
+def _token_key(token: str) -> str:
+    return f"auth:token:{token}"
+
+
+def _store_token(token: str, data: Dict) -> None:
+    """Store token context in Redis if available, otherwise in memory."""
+    client = _get_redis_client()
+    expiry_hours = int(os.environ.get("TOKEN_EXPIRY_HOURS", "24"))
+    expiry_seconds = expiry_hours * 3600
+
+    if client:
+        try:
+            client.set(_token_key(token), json.dumps(data), ex=expiry_seconds)
+            return
+        except Exception as e:
+            logger.warning(f"Failed to store token in Redis, falling back to memory: {e}")
+
+    # Fallback to in-memory store
+    active_tokens[token] = data
+
+
+def _load_token(token: str) -> Optional[Dict]:
+    """Load token context from Redis or in-memory store."""
+    if not token:
+        return None
+
+    client = _get_redis_client()
+    if client:
+        try:
+            raw = client.get(_token_key(token))
+            if raw:
+                try:
+                    data = json.loads(raw)
+                except json.JSONDecodeError:
+                    return None
+                return data
+        except Exception as e:
+            logger.warning(f"Failed to load token from Redis, falling back to memory: {e}")
+
+    return active_tokens.get(token)
+
+
+def _delete_token(token: str) -> None:
+    """Remove token from Redis and in-memory fallback."""
+    client = _get_redis_client()
+    if client:
+        try:
+            client.delete(_token_key(token))
+        except Exception as e:
+            logger.warning(f"Failed to delete token from Redis: {e}")
+
+    active_tokens.pop(token, None)
 
 
 # Models for request/response
@@ -286,14 +376,15 @@ def create_token_with_context(username: str) -> Dict:
     role = get_user_role(username)
     permissions = get_user_permissions(username)
     
-    # Store token with full context
-    active_tokens[token] = {
+    token_record = {
         "username": username,
         "role": role,
         "scholarships": scholarships,
         "permissions": permissions,
-        "created": datetime.now()
+        "created": datetime.now().isoformat(),
     }
+    
+    _store_token(token, token_record)
     
     return {
         "token": token,
@@ -335,17 +426,28 @@ def verify_token(token: Optional[str]) -> Optional[str]:
     if not token:
         return None
     
-    token_data = active_tokens.get(token)
+    token_data = _load_token(token)
     if not token_data:
         return None
     
-    # Check if token is expired (24 hours)
-    expiry_hours = int(os.environ.get("TOKEN_EXPIRY_HOURS", "24"))
-    if datetime.now() - token_data["created"] > timedelta(hours=expiry_hours):
-        del active_tokens[token]
-        return None
+    # Check if token is expired (24 hours) if created timestamp is present
+    created = token_data.get("created")
+    created_dt: Optional[datetime] = None
+    if isinstance(created, str):
+        try:
+            created_dt = datetime.fromisoformat(created)
+        except Exception:
+            created_dt = None
+    elif isinstance(created, datetime):
+        created_dt = created
     
-    return token_data["username"]
+    if created_dt is not None:
+        expiry_hours = int(os.environ.get("TOKEN_EXPIRY_HOURS", "24"))
+        if datetime.now() - created_dt > timedelta(hours=expiry_hours):
+            _delete_token(token)
+            return None
+    
+    return token_data.get("username")
 
 
 def verify_token_with_context(token: Optional[str]) -> Optional[Dict]:
@@ -360,15 +462,26 @@ def verify_token_with_context(token: Optional[str]) -> Optional[Dict]:
     if not token:
         return None
     
-    token_data = active_tokens.get(token)
+    token_data = _load_token(token)
     if not token_data:
         return None
     
     # Check if token is expired
-    expiry_hours = int(os.environ.get("TOKEN_EXPIRY_HOURS", "24"))
-    if datetime.now() - token_data["created"] > timedelta(hours=expiry_hours):
-        del active_tokens[token]
-        return None
+    created = token_data.get("created")
+    created_dt: Optional[datetime] = None
+    if isinstance(created, str):
+        try:
+            created_dt = datetime.fromisoformat(created)
+        except Exception:
+            created_dt = None
+    elif isinstance(created, datetime):
+        created_dt = created
+    
+    if created_dt is not None:
+        expiry_hours = int(os.environ.get("TOKEN_EXPIRY_HOURS", "24"))
+        if datetime.now() - created_dt > timedelta(hours=expiry_hours):
+            _delete_token(token)
+            return None
     
     return token_data
 
@@ -402,9 +515,11 @@ def revoke_token(token: str) -> bool:
         verify_token: Check if a token is valid (handles expiration automatically)
         create_token: Generate new authentication tokens
     """
-    if token in active_tokens:
-        del active_tokens[token]
-        return True
-    return False
+    if not token:
+        return False
+    
+    existed = token in active_tokens
+    _delete_token(token)
+    return existed
 
 # Made with Bob

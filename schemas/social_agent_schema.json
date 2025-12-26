@@ -169,23 +169,24 @@
           "type": [
             "integer",
             "number"
-          ]
+          ],  
+          "minimum": 0,
+          "maximum": 10,
+          "description": "social presence score (0-10 points)"
         },
         "professional_presence_score": {
           "type": [
             "integer",
             "number"
-          ]
-        },
-        "overall_score": {
-          "type": [
-            "integer",
-            "number"
-          ]
+          ],
+          "minimum": 0,
+          "maximum": 10,
+          "description": "professional presence score (0-10 points)"
         }
       },
       "required": [
-        "overall_score"
+        "social_presence_score",
+        "professional_presence_score"
       ]
     },
     "score_breakdown": {

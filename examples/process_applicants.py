@@ -85,8 +85,14 @@ Available scholarships:
         print(f"Error: Scholarship folder does not exist: {scholarship_folder}")
         sys.exit(1)
     
-    # Setup logging
-    setup_logging()
+    # Setup logging: console + fresh file for this workflow run
+    log_dir = Path("logs")
+    log_dir.mkdir(parents=True, exist_ok=True)
+    log_file = log_dir / f"process_applicants_{args.scholarship}.log"
+    # Truncate or create empty log file at start of run
+    log_file.open("w").close()
+    
+    setup_logging(log_file=str(log_file))
     logger = get_logger(__name__)
     
     logger.info("="*60)

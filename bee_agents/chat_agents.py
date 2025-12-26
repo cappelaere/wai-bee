@@ -29,9 +29,8 @@ from .logging_config import setup_logging
 
 logger = setup_logging('chat_agents')
 
-# Shared cache for response caching across all instances
+# Shared cache for response caching across all instances (not actively used yet)
 response_cache: SlidingCache[str] = SlidingCache(size=100)
-response_cache.clear()
 
 class MultiAgentOrchestrator:
     """Multi-agent orchestrator with specialized agents and hand-off capabilities."""
@@ -443,14 +442,14 @@ If the user asks about other scholarships, politely inform them they don't have 
             })
         except (AttributeError, RuntimeError) as e:
             execution_time = time.time() - start_time
-            logger.error(f"Invalid response structure for {username}: {e}")
+            logger.exception(f"Invalid response structure for {username}: {e}")
             await websocket.send_json({
                 "type": "error",
                 "message": "An error occurred processing your request. Please try again."
             })
         except Exception as e:
             execution_time = time.time() - start_time
-            logger.error(f"Error processing message for {username}: {e}")
+            logger.exception(f"Error processing message for {username}")
             await websocket.send_json({
                 "type": "error",
                 "message": str(e)

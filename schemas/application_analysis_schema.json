@@ -19,33 +19,26 @@
         "completeness_score": {
           "type": "integer",
           "minimum": 0,
-          "maximum": 30,
-          "description": "Field completeness score (0-30 points)"
+          "maximum": 10,
+          "description": "Field completeness score (0-10 points)"
         },
         "validity_score": {
           "type": "integer",
           "minimum": 0,
-          "maximum": 30,
-          "description": "Data validity score (0-30 points)"
+          "maximum": 10,
+          "description": "Data validity score (0-10 points)"
         },
         "attachment_score": {
           "type": "integer",
           "minimum": 0,
-          "maximum": 40,
-          "description": "Attachment completeness score (0-40 points)"
-        },
-        "overall_score": {
-          "type": "integer",
-          "minimum": 0,
-          "maximum": 100,
-          "description": "Total application score (0-100 points)"
+          "maximum": 10,
+          "description": "Attachment completeness score (0-10 points)"
         }
       },
       "required": [
         "completeness_score",
         "validity_score",
-        "attachment_score",
-        "overall_score"
+        "attachment_score"
       ]
     },
     "score_breakdown": {

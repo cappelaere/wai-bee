@@ -88,10 +88,9 @@ Required JSON structure:
     "areas_for_improvement": ["Area 1", "Area 2"] or []
   }},
   "scores": {{
-    "academic_performance_score": 0-100,
-    "academic_relevance_score": 0-100,
-    "academic_readiness_score": 0-100,
-    "overall_score": 0-100
+    "academic_performance_score": 0-10,
+    "academic_relevance_score": 0-10,
+    "academic_readiness_score": 0-10,
   }},
   "score_breakdown": {{
     "academic_performance_score_reasoning": "Detailed explanation with specific evidence",
@@ -101,11 +100,11 @@ Required JSON structure:
 }}
 
 SCORING GUIDELINES:
-- 90-100: Exceptional - Outstanding academic record, highly relevant program, excellent readiness
-- 80-89: Strong - Very good academic performance, relevant program, good readiness
-- 70-79: Good - Solid academic record, some relevance, adequate readiness
-- 60-69: Fair - Acceptable academic performance, limited relevance, developing readiness
-- Below 60: Needs improvement - Weak academic record or poor fit
+- 9-10: Exceptional - Outstanding academic record, highly relevant program, excellent readiness
+- 8-9: Strong - Very good academic performance, relevant program, good readiness
+- 7-8: Good - Solid academic record, some relevance, adequate readiness
+- 6-7: Fair - Acceptable academic performance, limited relevance, developing readiness
+- Below 5: Needs improvement - Weak academic record or poor fit
 
 Provide your analysis as a JSON object following the exact structure above."""
 
