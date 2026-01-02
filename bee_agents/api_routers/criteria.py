@@ -1,8 +1,12 @@
-"""Criteria management endpoints.
+"""Criteria/Prompts management endpoints.
+
+Returns evaluation prompts generated from config.yml facets.
+These prompts are used by agents to evaluate scholarship applications.
 
 Author: Pat G Cappelaere, IBM Federal Consulting
 Created: 2025-12-16
-Version: 1.0.0
+Updated: 2026-01-01
+Version: 2.0.0
 License: MIT
 """
 
@@ -27,12 +31,10 @@ async def list_criteria(
         example="Delaney_Wings"
     )
 ):
-    """List all available evaluation criteria files for a scholarship.
+    """List all available evaluation prompts for a scholarship.
     
-    Returns a list of all criteria files available for the specified scholarship,
-    including their names, filenames, and fully qualified download URLs. This endpoint
-    is useful for discovering what criteria types are available before requesting
-    specific criteria content.
+    Returns a list of all prompt files available for the specified scholarship,
+    including their names, filenames, and fully qualified download URLs.
     
     **Example Request:**
     ```
@@ -43,17 +45,14 @@ async def list_criteria(
     ```json
     {
       "scholarship": "Delaney_Wings",
-      "criteria_count": 5,
+      "criteria_count": 4,
       "criteria": [
         {
-          "name": "academic_criteria",
-          "filename": "academic_criteria.txt",
-          "url": "http://localhost:8200/criteria/Delaney_Wings/academic_criteria.txt"
-        },
-        {
-          "name": "application_criteria",
-          "filename": "application_criteria.txt",
-          "url": "http://localhost:8200/criteria/Delaney_Wings/application_criteria.txt"
+          "name": "application_analysis",
+          "filename": "application_analysis.txt",
+          "type": "analysis",
+          "agent": "application",
+          "url": "http://localhost:8200/criteria/file?scholarship=Delaney_Wings&filename=application_analysis.txt"
         }
       ]
     }
@@ -65,36 +64,43 @@ async def list_criteria(
     Returns:
         Dictionary containing:
         - scholarship: Name of the scholarship
-        - criteria_count: Number of criteria files found
-        - criteria: List of criteria objects with name, filename, and download URL
+        - criteria_count: Number of prompt files found
+        - criteria: List of prompt objects with name, filename, and download URL
         
     Raises:
-        HTTPException 404: If scholarship not found or no criteria directory exists
+        HTTPException 404: If scholarship not found or no prompts directory exists
     """
     get_data_service(scholarship)  # Validate scholarship exists
     
-    criteria_dir = Path("data") / scholarship / "criteria"
+    prompts_dir = Path("data") / scholarship / "prompts"
     
-    if not criteria_dir.exists():
-        logger.warning(f"Criteria directory not found: {criteria_dir}")
+    if not prompts_dir.exists():
+        logger.warning(f"Prompts directory not found: {prompts_dir}")
         raise HTTPException(
             status_code=404,
-            detail=f"No criteria found for scholarship: {scholarship}"
+            detail=f"No prompts found for scholarship: {scholarship}. Run generate_artifacts.py to create them."
         )
     
     # Get base URL from request
     base_url = str(request.base_url).rstrip('/') if request else "http://localhost:8200"
     
     criteria_files = []
-    for file_path in sorted(criteria_dir.glob("*.txt")):
-        criteria_name = file_path.stem  # filename without extension
+    for file_path in sorted(prompts_dir.glob("*.txt")):
+        prompt_name = file_path.stem  # filename without extension
+        # Parse agent name and type from filename (e.g., "essay_analysis" -> agent="essay", type="analysis")
+        parts = prompt_name.rsplit('_', 1)
+        agent_name = parts[0] if len(parts) > 1 else prompt_name
+        prompt_type = parts[1] if len(parts) > 1 else "analysis"
+        
         criteria_files.append({
-            "name": criteria_name,
+            "name": prompt_name,
             "filename": file_path.name,
+            "type": prompt_type,
+            "agent": agent_name,
             "url": f"{base_url}/criteria/file?scholarship={scholarship}&filename={file_path.name}"
         })
     
-    logger.info(f"Listed {len(criteria_files)} criteria files for {scholarship}")
+    logger.info(f"Listed {len(criteria_files)} prompt files for {scholarship}")
     
     return {
         "scholarship": scholarship,
@@ -107,8 +113,8 @@ async def list_criteria(
 async def get_criteria_by_type(
     criteria_type: str = Query(
         ...,
-        description="Type of evaluation criteria. Must be one of: application, academic, essay, recommendation, social",
-        example="academic"
+        description="Type of evaluation criteria (agent name). E.g.: application, resume, essay, recommendation",
+        example="essay"
     ),
     scholarship: str = Query(
         ...,
@@ -116,130 +122,96 @@ async def get_criteria_by_type(
         example="Delaney_Wings"
     )
 ):
-    """Get full evaluation criteria text for a specific criteria type.
+    """Get full evaluation prompt text for a specific agent type.
     
-    Retrieves the complete evaluation criteria text for a given criteria type.
-    The endpoint automatically maps criteria types to their corresponding filenames:
-    - `academic` → `academic_criteria.txt`
-    - `application` → `application_criteria.txt`
-    - `essay` → `essay_criteria.txt`
-    - `recommendation` → `recommendation_criteria.txt`
-    - `social` → `social_criteria.txt`
+    Retrieves the complete analysis prompt for a given agent type.
+    The endpoint maps agent types to their corresponding prompt files:
+    - `application` → `application_analysis.txt`
+    - `resume` → `resume_analysis.txt`
+    - `essay` → `essay_analysis.txt`
+    - `recommendation` → `recommendation_analysis.txt`
     
     **Example Request:**
     ```
-    GET /criteria/by-type?criteria_type=academic&scholarship=Delaney_Wings
+    GET /criteria/by-type?criteria_type=essay&scholarship=Delaney_Wings
     ```
     
     **Example Response:**
     ```json
     {
       "scholarship": "Delaney_Wings",
-      "criteria_type": "academic",
-      "filename": "academic_criteria.txt",
-      "content": "# Academic Profile Evaluation Criteria\n\nThis file contains...",
-      "line_count": 72
+      "criteria_type": "essay",
+      "filename": "essay_analysis.txt",
+      "content": "# Essay Analysis Evaluation Criteria\n\n...",
+      "line_count": 57
     }
     ```
     
-    **Valid Criteria Types:**
-    - `application`: Criteria for evaluating application completeness and validity
-    - `academic`: Criteria for evaluating academic performance and readiness
-    - `essay`: Criteria for evaluating essay quality and content
-    - `recommendation`: Criteria for evaluating letters of recommendation
-    - `social`: Criteria for evaluating social impact and community involvement
-    
     Args:
-        criteria_type: Type of criteria. Must be one of: application, academic, essay, recommendation, social
+        criteria_type: Agent type (application, resume, essay, recommendation)
         scholarship: Name of the scholarship (e.g., 'Delaney_Wings' or 'Evans_Wings')
         
     Returns:
         Dictionary containing:
         - scholarship: Name of the scholarship
-        - criteria_type: The criteria type requested
-        - filename: The actual filename (e.g., "academic_criteria.txt")
-        - content: Full text content of the criteria file
-        - line_count: Number of lines in the criteria file
+        - criteria_type: The agent type requested
+        - filename: The actual filename
+        - content: Full text content of the prompt file
+        - line_count: Number of lines in the prompt file
         
     Raises:
-        HTTPException 400: If criteria_type is invalid or missing
-        HTTPException 404: If scholarship not found or criteria file doesn't exist
-        HTTPException 500: If file cannot be read
+        HTTPException 400: If criteria_type is invalid
+        HTTPException 404: If scholarship not found or prompt file doesn't exist
     """
     logger.info(f"get_criteria_by_type called: criteria_type='{criteria_type}', scholarship='{scholarship}'")
     
     # Check if criteria_type is a literal template string (client-side error)
     if criteria_type.startswith('{') and criteria_type.endswith('}'):
-        logger.error(
-            f"Client sent literal template string '{criteria_type}' instead of actual criteria type. "
-            f"This indicates a client-side URL template substitution issue. "
-            f"Expected URL format: /criteria/academic?scholarship=Delaney_Wings"
-        )
+        logger.error(f"Client sent literal template string '{criteria_type}'")
         raise HTTPException(
             status_code=400,
-            detail=(
-                f"Invalid criteria_type: '{criteria_type}'. "
-                f"It appears you're sending a template variable instead of an actual value. "
-                f"Use a valid criteria type: application, academic, essay, recommendation, or social. "
-                f"Example: GET /criteria/by-type?criteria_type=academic&scholarship=Delaney_Wings"
-            )
+            detail=f"Invalid criteria_type: '{criteria_type}'. Use an agent name like: application, resume, essay, recommendation"
         )
     
     try:
         get_data_service(scholarship)  # Validate scholarship exists
-        logger.debug(f"Scholarship '{scholarship}' validated successfully")
-    except HTTPException as e:
-        logger.warning(f"Scholarship validation failed for '{scholarship}': {e.detail}")
+    except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Unexpected error validating scholarship '{scholarship}': {e}", exc_info=True)
+        logger.error(f"Error validating scholarship '{scholarship}': {e}")
         raise HTTPException(status_code=500, detail=f"Error validating scholarship: {str(e)}")
     
-    # Validate criteria type
-    valid_types = ["application", "academic", "essay", "recommendation", "social"]
-    logger.debug(f"Validating criteria_type '{criteria_type}' against valid types: {valid_types}")
-    
-    if criteria_type not in valid_types:
-        logger.warning(
-            f"Invalid criteria_type '{criteria_type}' provided. "
-            f"Valid types are: {', '.join(valid_types)}"
-        )
-        raise HTTPException(
-            status_code=400,
-            detail=(
-                f"Invalid criteria type '{criteria_type}'. "
-                f"Must be one of: {', '.join(valid_types)}. "
-                f"Example: GET /criteria/by-type?criteria_type=academic&scholarship=Delaney_Wings"
-            )
-        )
-    
-    # Map type to filename
-    filename = f"{criteria_type}_criteria.txt"
-    criteria_path = Path("data") / scholarship / "criteria" / filename
-    logger.debug(f"Mapped criteria_type '{criteria_type}' to filename '{filename}'")
-    logger.debug(f"Looking for criteria file at: {criteria_path}")
-    
-    if not criteria_path.exists():
-        logger.warning(
-            f"Criteria file not found: {criteria_path} "
-            f"(criteria_type='{criteria_type}', scholarship='{scholarship}')"
-        )
+    # Valid agent types (dynamically check what prompts exist)
+    prompts_dir = Path("data") / scholarship / "prompts"
+    if not prompts_dir.exists():
         raise HTTPException(
             status_code=404,
-            detail=f"{criteria_type.title()} criteria not found for {scholarship}"
+            detail=f"No prompts directory for scholarship: {scholarship}. Run generate_artifacts.py"
         )
     
-    logger.debug(f"Criteria file found: {criteria_path}")
+    # Map type to filename - support both old format (academic) and new format (resume)
+    type_mapping = {
+        "academic": "resume",  # Legacy mapping
+    }
+    mapped_type = type_mapping.get(criteria_type, criteria_type)
+    
+    filename = f"{mapped_type}_analysis.txt"
+    criteria_path = prompts_dir / filename
+    
+    if not criteria_path.exists():
+        # List available types
+        available = [f.stem.replace('_analysis', '') for f in prompts_dir.glob('*_analysis.txt')]
+        raise HTTPException(
+            status_code=404,
+            detail=f"Prompt not found for '{criteria_type}'. Available types: {', '.join(available)}"
+        )
     
     try:
         with open(criteria_path, 'r', encoding='utf-8') as f:
             content = f.read()
         
         line_count = len(content.split('\n'))
-        logger.info(
-            f"Successfully retrieved {criteria_type} criteria for {scholarship}: "
-            f"{line_count} lines, {len(content)} characters"
-        )
+        logger.info(f"Retrieved {criteria_type} prompt for {scholarship}: {line_count} lines")
         
         return {
             "scholarship": scholarship,
@@ -248,18 +220,9 @@ async def get_criteria_by_type(
             "content": content,
             "line_count": line_count
         }
-    except FileNotFoundError:
-        logger.error(f"File not found after existence check: {criteria_path}")
-        raise HTTPException(status_code=404, detail=f"Criteria file not found: {filename}")
-    except PermissionError as e:
-        logger.error(f"Permission denied reading criteria file {criteria_path}: {e}")
-        raise HTTPException(status_code=500, detail="Permission denied reading criteria file")
     except Exception as e:
-        logger.error(
-            f"Error reading {criteria_type} criteria for {scholarship} from {criteria_path}: {e}",
-            exc_info=True
-        )
-        raise HTTPException(status_code=500, detail=f"Failed to read criteria file: {str(e)}")
+        logger.error(f"Error reading prompt {criteria_path}: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to read prompt file: {str(e)}")
 
 
 @router.get("/criteria/file", operation_id="get_criteria_file")
@@ -271,37 +234,29 @@ async def get_criteria_file(
     ),
     filename: str = Query(
         ...,
-        description="Name of the criteria file (must end with .txt, e.g., 'academic_criteria.txt')",
-        example="academic_criteria.txt"
+        description="Name of the prompt file (must end with .txt)",
+        example="essay_analysis.txt"
     )
 ):
-    """Download a specific criteria file by filename.
+    """Download a specific prompt file by filename.
     
-    Downloads a criteria file directly as plain text. This endpoint requires the
-    exact filename (e.g., "academic_criteria.txt") rather than just the criteria type.
-    Use this endpoint when you already know the exact filename, or use
-    `/criteria/by-type` for type-based access.
+    Downloads a prompt file directly as plain text.
     
     **Example Request:**
     ```
-    GET /criteria/file?scholarship=Delaney_Wings&filename=academic_criteria.txt
+    GET /criteria/file?scholarship=Delaney_Wings&filename=essay_analysis.txt
     ```
     
-    **Security:**
-    - Filenames are validated to prevent path traversal attacks
-    - Only `.txt` files are allowed
-    - Filenames containing `/` or `\` are rejected
-    
     Args:
-        scholarship: Name of the scholarship (e.g., 'Delaney_Wings' or 'Evans_Wings')
-        filename: Exact filename of the criteria file (must end with .txt, e.g., "academic_criteria.txt")
+        scholarship: Name of the scholarship
+        filename: Exact filename of the prompt file (must end with .txt)
         
     Returns:
-        FileResponse: Plain text file with content-type "text/plain"
+        FileResponse: Plain text file
         
     Raises:
-        HTTPException 400: If filename is invalid (doesn't end with .txt or contains path separators)
-        HTTPException 404: If scholarship not found or criteria file doesn't exist
+        HTTPException 400: If filename is invalid
+        HTTPException 404: If scholarship not found or prompt file doesn't exist
     """
     get_data_service(scholarship)  # Validate scholarship exists
     
@@ -309,20 +264,21 @@ async def get_criteria_file(
     if not filename.endswith('.txt') or '/' in filename or '\\' in filename:
         raise HTTPException(status_code=400, detail="Invalid filename")
     
-    criteria_path = Path("data") / scholarship / "criteria" / filename
+    prompts_path = Path("data") / scholarship / "prompts" / filename
     
-    if not criteria_path.exists():
+    if not prompts_path.exists():
         raise HTTPException(
             status_code=404,
-            detail=f"Criteria file not found: {filename}"
+            detail=f"Prompt file not found: {filename}"
         )
     
-    logger.info(f"Serving criteria file: {scholarship}/{filename}")
+    logger.info(f"Serving prompt file: {scholarship}/{filename}")
     
     return FileResponse(
-        path=criteria_path,
+        path=prompts_path,
         media_type="text/plain",
         filename=filename
     )
+
 
 # Made with Bob

@@ -16,9 +16,7 @@ from typing import Optional
 
 
 def load_weights(scholarship_folder: Path) -> dict:
-    """Load scoring weights from scholarship folder.
-    
-    Tries to load from weights.json first, falls back to extracting from agents.json.
+    """Load scoring weights from agents.json in scholarship folder.
     
     Args:
         scholarship_folder: Path to scholarship folder (e.g., "data/Delaney_Wings").
@@ -27,7 +25,7 @@ def load_weights(scholarship_folder: Path) -> dict:
         Dictionary containing weights configuration.
         
     Raises:
-        FileNotFoundError: If neither weights.json nor agents.json exists.
+        FileNotFoundError: If agents.json doesn't exist.
         ValueError: If weights don't sum to 1.0.
         
     Example:
@@ -37,69 +35,45 @@ def load_weights(scholarship_folder: Path) -> dict:
     """
     logger = logging.getLogger()
     
-    weights_file = scholarship_folder / "weights.json"
     agents_file = scholarship_folder / "agents.json"
     
-    # Try weights.json first (legacy/detailed format)
-    if weights_file.exists():
-        try:
-            with open(weights_file, 'r', encoding='utf-8') as f:
-                weights_config = json.load(f)
-            
-            # Validate weights sum to 1.0
-            total = sum(w['weight'] for w in weights_config['weights'].values())
-            if abs(total - 1.0) > 0.001:  # Allow small floating point errors
-                raise ValueError(f"Weights must sum to 1.0, got {total}")
-            
-            logger.info(f"Loaded weights from: {weights_file}")
-            return weights_config
-            
-        except json.JSONDecodeError as e:
-            logger.error(f"Invalid JSON in weights file: {e}")
-            raise
-        except Exception as e:
-            logger.error(f"Error loading weights: {e}")
-            raise
+    if not agents_file.exists():
+        raise FileNotFoundError(f"agents.json not found in {scholarship_folder}")
     
-    # Fall back to extracting weights from agents.json
-    elif agents_file.exists():
-        try:
-            with open(agents_file, 'r', encoding='utf-8') as f:
-                agents_config = json.load(f)
-            
-            # Extract weights from agents
-            weights = {}
-            for agent in agents_config['agents']:
-                if agent.get('weight') is not None:
-                    weights[agent['name']] = {
-                        'weight': agent['weight'],
-                        'description': agent['description']
-                    }
-            
-            # Validate weights sum to 1.0
-            total = sum(w['weight'] for w in weights.values())
-            if abs(total - 1.0) > 0.001:
-                raise ValueError(f"Weights must sum to 1.0, got {total}")
-            
-            weights_config = {
-                'scholarship_name': agents_config['scholarship_name'],
-                'description': f"Weights extracted from agents.json",
-                'weights': weights,
-                'total_weight': total
-            }
-            
-            logger.info(f"Loaded weights from: {agents_file}")
-            return weights_config
-            
-        except json.JSONDecodeError as e:
-            logger.error(f"Invalid JSON in agents file: {e}")
-            raise
-        except Exception as e:
-            logger.error(f"Error loading weights from agents file: {e}")
-            raise
-    
-    else:
-        raise FileNotFoundError(f"Neither weights.json nor agents.json found in {scholarship_folder}")
+    try:
+        with open(agents_file, 'r', encoding='utf-8') as f:
+            agents_config = json.load(f)
+        
+        # Extract weights from agents
+        weights = {}
+        for agent in agents_config['agents']:
+            if agent.get('weight') is not None:
+                weights[agent['name']] = {
+                    'weight': agent['weight'],
+                    'description': agent['description']
+                }
+        
+        # Validate weights sum to 1.0
+        total = sum(w['weight'] for w in weights.values())
+        if abs(total - 1.0) > 0.001:
+            raise ValueError(f"Weights must sum to 1.0, got {total}")
+        
+        weights_config = {
+            'scholarship_name': agents_config['scholarship_name'],
+            'description': "Weights from agents.json",
+            'weights': weights,
+            'total_weight': total
+        }
+        
+        logger.info(f"Loaded weights from: {agents_file}")
+        return weights_config
+        
+    except json.JSONDecodeError as e:
+        logger.error(f"Invalid JSON in agents file: {e}")
+        raise
+    except Exception as e:
+        logger.error(f"Error loading weights from agents file: {e}")
+        raise
 
 
 def calculate_final_score(
@@ -233,7 +207,15 @@ def load_agent_scores(
         try:
             with open(app_analysis_file, 'r') as f:
                 data = json.load(f)
-                scores['application'] = data.get('scores', {}).get('overall_score')
+                if 'scores' in data:
+                    scores['application'] = data.get('scores', {}).get('overall_score')
+                elif 'facets' in data:
+                    facet_scores = [
+                        int(f.get('score', 0)) for f in (data.get('facets') or [])
+                        if isinstance(f, dict)
+                    ]
+                    if facet_scores:
+                        scores['application'] = round(sum(facet_scores) / len(facet_scores), 2)
         except Exception as e:
             logger.warning(f"Error loading application score: {e}")
     
@@ -281,7 +263,7 @@ def calculate_wai_final_score(
     Loads weights, loads all agent scores, and calculates final score.
     
     Args:
-        scholarship_folder: Path to scholarship folder with weights.json.
+        scholarship_folder: Path to scholarship folder with agents.json.
         outputs_dir: Base outputs directory.
         scholarship_name: Name of scholarship.
         wai_number: WAI application number.

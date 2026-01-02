@@ -1,11 +1,11 @@
-"""Utility for loading scholarship evaluation criteria.
+"""Utility for loading scholarship evaluation criteria/prompts.
 
-This module provides functions to load scholarship-specific criteria files
-that guide the LLM's analysis of recommendation letters.
+This module provides functions to load scholarship-specific criteria/prompt files
+that guide the LLM's analysis. Supports both old (criteria/) and new (prompts/) formats.
 
 Author: Pat G Cappelaere, IBM Federal Consulting
 Created: 2025-12-05
-Version: 1.0.0
+Version: 1.1.0
 License: MIT
 """
 
@@ -21,9 +21,11 @@ _criteria_cache = {}
 
 
 def load_criteria(scholarship_folder: Path, criteria_type: str = "recommendation") -> str:
-    """Load evaluation criteria from scholarship folder.
+    """Load evaluation criteria/prompt from scholarship folder.
     
-    Looks for: {scholarship_folder}/criteria/{criteria_type}_criteria.txt
+    Checks both new and legacy locations:
+    - New: {scholarship_folder}/prompts/{criteria_type}_analysis.txt
+    - Legacy: {scholarship_folder}/criteria/{criteria_type}_criteria.txt
     
     Args:
         scholarship_folder: Path to scholarship folder (e.g., "data/Delaney_Wings").
@@ -39,14 +41,29 @@ def load_criteria(scholarship_folder: Path, criteria_type: str = "recommendation
         3245
     
     Note:
+        - Prefers new prompts/ format over legacy criteria/ format
         - Falls back to default criteria if file doesn't exist
-        - Logs warning if using default criteria
     """
     # Handle both "Applications" subfolder and direct scholarship folder
     if scholarship_folder.name == "Applications":
         scholarship_folder = scholarship_folder.parent
     
-    criteria_file = scholarship_folder / "criteria" / f"{criteria_type}_criteria.txt"
+    # Try new format first: prompts/{type}_analysis.txt
+    new_format_file = scholarship_folder / "prompts" / f"{criteria_type}_analysis.txt"
+    # Legacy format: criteria/{type}_criteria.txt
+    legacy_format_file = scholarship_folder / "criteria" / f"{criteria_type}_criteria.txt"
+    
+    # Determine which file to use
+    if new_format_file.exists():
+        criteria_file = new_format_file
+    elif legacy_format_file.exists():
+        criteria_file = legacy_format_file
+    else:
+        logger.warning(f"No prompt/criteria file found for {criteria_type}")
+        logger.warning(f"  Checked: {new_format_file}")
+        logger.warning(f"  Checked: {legacy_format_file}")
+        logger.warning("Using default recommendation criteria")
+        return get_default_criteria()
     
     # Check cache first
     cache_key = str(criteria_file)
@@ -55,23 +72,16 @@ def load_criteria(scholarship_folder: Path, criteria_type: str = "recommendation
         return _criteria_cache[cache_key]
     
     # Load from file
-    if criteria_file.exists():
-        try:
-            with open(criteria_file, 'r', encoding='utf-8') as f:
-                criteria = f.read()
-            logger.info(f"Loaded criteria from: {criteria_file}")
-            # Cache the loaded criteria
-            _criteria_cache[cache_key] = criteria
-            return criteria
-        except Exception as e:
-            logger.error(f"Error reading criteria file {criteria_file}: {str(e)}")
-            logger.warning("Falling back to default criteria")
-            default = get_default_criteria()
-            _criteria_cache[cache_key] = default
-            return default
-    else:
-        logger.warning(f"Criteria file not found: {criteria_file}")
-        logger.warning("Using default recommendation criteria")
+    try:
+        with open(criteria_file, 'r', encoding='utf-8') as f:
+            criteria = f.read()
+        logger.info(f"Loaded criteria from: {criteria_file}")
+        # Cache the loaded criteria
+        _criteria_cache[cache_key] = criteria
+        return criteria
+    except Exception as e:
+        logger.error(f"Error reading criteria file {criteria_file}: {str(e)}")
+        logger.warning("Falling back to default criteria")
         default = get_default_criteria()
         _criteria_cache[cache_key] = default
         return default
@@ -133,7 +143,9 @@ def get_default_criteria() -> str:
 
 
 def get_criteria_path(scholarship_folder: Path, criteria_type: str = "recommendation") -> Path:
-    """Get the path to a criteria file.
+    """Get the path to a criteria/prompt file.
+    
+    Returns the path to the file that exists, preferring new format over legacy.
     
     Args:
         scholarship_folder: Path to scholarship folder.
@@ -146,12 +158,18 @@ def get_criteria_path(scholarship_folder: Path, criteria_type: str = "recommenda
         >>> scholarship_folder = Path("data/Delaney_Wings")
         >>> path = get_criteria_path(scholarship_folder, "recommendation")
         >>> print(path)
-        data/Delaney_Wings/criteria/recommendation_criteria.txt
+        data/Delaney_Wings/prompts/recommendation_analysis.txt
     """
     # Handle both "Applications" subfolder and direct scholarship folder
     if scholarship_folder.name == "Applications":
         scholarship_folder = scholarship_folder.parent
     
+    # Try new format first
+    new_format_path = scholarship_folder / "prompts" / f"{criteria_type}_analysis.txt"
+    if new_format_path.exists():
+        return new_format_path
+    
+    # Fall back to legacy format
     return scholarship_folder / "criteria" / f"{criteria_type}_criteria.txt"
 
 

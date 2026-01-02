@@ -25,7 +25,7 @@ from ..review_service import (
     get_reviewer_initials,
     save_review,
     list_reviews_for_reviewer,
-    generate_final_reviews_csv,
+    generate_aggregate_reviews,
 )
 
 logger = logging.getLogger(__name__)
@@ -211,8 +211,8 @@ async def list_my_reviews(
 
 
 @router.post(
-    "/reviews/final_csv",
-    operation_id="generate_final_reviews_csv",
+    "/reviews/aggregate",
+    operation_id="generate_aggregate_reviews",
     tags=["Reviews"],
 )
 async def generate_final_reviews_csv_endpoint(
@@ -220,9 +220,9 @@ async def generate_final_reviews_csv_endpoint(
     reviewer: dict = Depends(get_current_reviewer),
     request: Request = None,
 ):
-    """Generate a CSV summarizing all reviewer scores for a scholarship.
+    """Generate an aggregate summarizing all reviewer scores for a scholarship.
 
-    The CSV is written to:
+    A CSV is written to:
 
         outputs/{Scholarship}/reviews/final_reviews_summary.csv
 
@@ -237,7 +237,7 @@ async def generate_final_reviews_csv_endpoint(
         )
 
     try:
-        csv_path, row_count, rows = generate_final_reviews_csv(scholarship)
+        csv_path, row_count, rows = generate_aggregate_reviews(scholarship)
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
     except Exception as e:
@@ -277,7 +277,7 @@ async def download_final_reviews_csv(
     can download it directly (e.g., from a browser or via curl).
     """
     try:
-        csv_path, _, _ = generate_final_reviews_csv(scholarship)
+        csv_path, _, _ = generate_aggregate_reviews(scholarship)
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
     except Exception as e:

@@ -25,6 +25,8 @@ from beeai_framework.memory import UnconstrainedMemory
 from beeai_framework.cache import SlidingCache
 from beeai_framework.errors import FrameworkError
 from beeai_framework.backend import ChatModelParameters, UserMessage
+from beeai_framework.agents.requirement.events import RequirementAgentFinalAnswerEvent
+from beeai_framework.emitter import EventMeta
 
 from .logging_config import setup_logging
 
@@ -233,7 +235,7 @@ When calling API endpoints, always use the scholarship parameter provided in the
         
         # Get accessible scholarships for context
         accessible_scholarships = access_control.get_accessible_scholarships()
-        scholarship_names = [s["name"] for s in accessible_scholarships]
+        #scholarship_names = [s["name"] for s in accessible_scholarships]
         
         # Get the selected scholarship from token (set during scholarship selection)
         selected_scholarship = token_data.get("selected_scholarship")
@@ -269,15 +271,6 @@ All API calls require a 'scholarship' query parameter. Use "{selected_scholarshi
 You can only access and provide information about the scholarships listed above.
 If the user asks about other scholarships, politely inform them they don't have access.
 """
-        
-        # Structured logging with context
-        log_context = {
-            "username": username,
-            "role": token_data["role"],
-            "selected_scholarship": selected_scholarship,
-            "message_length": len(user_message),
-            "timestamp": time.time()
-        }
         logger.info("Processing chat message")
         
         # Metrics: Track execution time
@@ -313,7 +306,11 @@ If the user asks about other scholarships, politely inform them they don't have 
                 
                 auth_headers = {"Authorization": f"Bearer {token_data['token']}"}
 
+                # def handle_final_answer(data: RequirementAgentFinalAnswerEvent, meta: EventMeta) -> None:
+                #     logger.info(f"Final answer: {data.delta}")
+
                 agent_run = self.agent.run(contextualized_message)
+                #.on("final_answer", handle_final_answer)
                 
                 # Execute with timeout
                 response = await asyncio.wait_for(
@@ -323,10 +320,7 @@ If the user asks about other scholarships, politely inform them they don't have 
      
             except asyncio.TimeoutError:
                 execution_time = time.time() - start_time
-                logger.error(
-                    f"Agent execution timeout for user {username}",
-                    extra={**log_context, "execution_time": execution_time, "status": "timeout"}
-                )
+                logger.error(f"Agent execution timeout for user {username}")
                 raise RuntimeError("Request timed out. Please try again with a simpler query.")
             
             # Response validation: Check if response structure is valid
@@ -347,16 +341,16 @@ If the user asks about other scholarships, politely inform them they don't have 
             logger.info(f"Caching response for {hash_key}")
 
             if not agent_response or not agent_response.strip():
-                logger.warning(f"Agent returned empty text for user {username}", extra=log_context)
+                logger.warning(f"Agent returned empty text for user {username}")
                 agent_response = "I apologize, but I couldn't generate a response. Please try rephrasing your question."
             
             # Optional: Include which agent handled the request for transparency
             handling_agent = getattr(response, 'agent_name', 'single-agent')
             
             # Metrics: Calculate and log execution time
-            execution_time = time.time() - start_time
+            execution_time = round(time.time() - start_time, 2)
             logger.info(
-                f"Response from {handling_agent} for {username} time: {execution_time}")
+                f"Response from {handling_agent} for {username} time: {execution_time} secs")
 
             # Send a single response back to the client
             await websocket.send_json({

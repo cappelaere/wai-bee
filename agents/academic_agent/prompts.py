@@ -111,30 +111,7 @@ Provide your analysis as a JSON object following the exact structure above."""
     return prompt
 
 
-def build_retry_prompt(original_response: str, validation_errors: str) -> str:
-    """Build prompt for retry after validation failure.
-    
-    Args:
-        original_response: The original LLM response that failed validation.
-        validation_errors: Description of validation errors.
-    
-    Returns:
-        Prompt string for retry attempt.
-    """
-    return f"""Your previous response had validation errors. Please fix them and provide a corrected JSON response.
-
-VALIDATION ERRORS:
-{validation_errors}
-
-ORIGINAL RESPONSE:
-{original_response}
-
-Please provide a corrected JSON response that:
-1. Fixes all validation errors
-2. Follows the exact JSON structure required
-3. Contains ONLY the JSON object (no markdown, no explanations)
-4. Has all required fields with appropriate values
-
-Return the corrected JSON now:"""
+# Note: Repair prompts are now generated and loaded from agents.json via utils.prompt_loader.
+# The build_retry_prompt function was removed as it is no longer used.
 
 # Made with Bob

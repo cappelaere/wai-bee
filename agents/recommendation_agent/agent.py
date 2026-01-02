@@ -12,13 +12,13 @@ License: MIT
 Example:
     Basic usage of the Recommendation Agent::
 
+        from pathlib import Path
         from agents.recommendation_agent import RecommendationAgent
         
-        agent = RecommendationAgent()
-        result = agent.process_recommendations(
-            scholarship_folder="data/Delaney_Wings",
-            max_wai_folders=10,
-            model="ollama/llama3.2:1b"
+        agent = RecommendationAgent(Path("data/WAI-Harvard-June-2026"))
+        result = agent.process_batch(
+            wai_numbers=["WAI-12345", "WAI-12346"],
+            model="ollama/llama3.2:3b"
         )
         
         print(f"Processed: {result.successful}/{result.total}")
@@ -28,18 +28,15 @@ Attributes:
 """
 
 import json
-import logging, traceback
-import os
+import logging
 import time
 from pathlib import Path
 from typing import Optional
 
-# Suppress LiteLLM's verbose logging
-os.environ["LITELLM_LOG"] = "ERROR"
-import litellm
-litellm.suppress_debug_info = True
-
 from litellm import completion
+
+from utils.llm_config import configure_litellm
+configure_litellm()
 
 from models.recommendation_data import (
     RecommendationData,
@@ -48,22 +45,20 @@ from models.recommendation_data import (
 )
 from utils.folder_scanner import scan_scholarship_folder, get_wai_number
 from utils.recommendation_scanner import (
-    find_recommendation_files,
     read_recommendation_text,
     get_recommendation_output_path,
-    is_recommendation_processed,
-    get_scholarship_name_from_path,
-    validate_recommendation_files
+    is_recommendation_processed
 )
-from utils.criteria_loader import load_criteria, get_criteria_path
+from utils.prompt_loader import load_analysis_prompt, load_repair_prompt, load_schema_path, load_agent_config
+from utils.attachment_finder import find_input_files_for_agent
 from utils.schema_validator import (
     load_schema,
-    validate_and_fix_iterative,
     extract_json_from_text
 )
-from .prompts import SYSTEM_PROMPT, build_analysis_prompt, build_retry_prompt
+from utils.llm_repair import validate_and_repair_once
+from .prompts import SYSTEM_PROMPT, build_analysis_prompt
 
-logger = logging.getLogger()
+logger = logging.getLogger(__name__)
 
 
 class RecommendationAgent:
@@ -74,33 +69,49 @@ class RecommendationAgent:
     structured JSON output with scores and detailed analysis.
     
     Attributes:
+        scholarship_folder: Path to scholarship data folder.
         schema: JSON schema for output validation.
-        schema_path: Path to the schema file.
     
     Example:
-        >>> agent = RecommendationAgent()
-        >>> result = agent.process_recommendations(
-        ...     scholarship_folder="data/Delaney_Wings",
-        ...     model="ollama/llama3.2:3b",
-        ...     max_wai_folders=10
-        ... )
-        >>> print(f"Success rate: {result.successful}/{result.total}")
+        >>> agent = RecommendationAgent(Path("data/WAI-Harvard-June-2026"))
+        >>> result = agent.analyze_recommendations(wai_number="WAI-12345")
+        >>> print(f"Overall score: {result.scores.overall_score}")
     """
     
-    def __init__(self, schema_path: Optional[Path] = None):
-        """Initialize the Recommendation Agent.
+    def __init__(self, scholarship_folder: Path):
+        """Initialize the Recommendation Agent with scholarship configuration.
         
         Args:
-            schema_path: Path to JSON schema file. If None, uses default path.
+            scholarship_folder: Path to scholarship data folder containing agents.json.
+            
+        Raises:
+            FileNotFoundError: If the schema file cannot be found.
+            ValueError: If the schema path is not configured in agents.json.
         """
-        self.schema_path = schema_path or Path("schemas/recommendation_agent_schema.json")
-        self.schema = load_schema(self.schema_path)
-        logger.info("Recommendation Agent initialized")
+        self.scholarship_folder = scholarship_folder
+        self.scholarship_name = scholarship_folder.name
+        
+        # Load schema from agents.json config
+        schema_path = load_schema_path(scholarship_folder, "recommendation")
+        if not schema_path:
+            raise ValueError(
+                f"No schema path configured for 'recommendation' agent in {scholarship_folder}/agents.json. "
+                f"Run generate_artifacts.py to create the schema."
+            )
+        
+        if not schema_path.exists():
+            raise FileNotFoundError(
+                f"Schema file not found: {schema_path}. "
+                f"Run generate_artifacts.py to create the schema."
+            )
+        
+        self.schema = load_schema(schema_path)
+        logger.info(f"Loaded schema from: {schema_path}")
+        logger.info(f"Recommendation Agent initialized for {self.scholarship_name}")
     
     def analyze_recommendations(
         self,
         wai_number: str,
-        scholarship_folder: Optional[str] = None,
         model: str = "ollama/llama3.2:3b",
         fallback_model: str = "ollama/llama3:latest",
         max_retries: int = 3
@@ -109,7 +120,6 @@ class RecommendationAgent:
         
         Args:
             wai_number: WAI application number.
-            scholarship_folder: Path to scholarship folder (e.g., "data/Delaney_Wings").
             model: Primary LLM model to use.
             fallback_model: Fallback model if primary fails.
             max_retries: Maximum retry attempts.
@@ -117,118 +127,79 @@ class RecommendationAgent:
         Returns:
             RecommendationData if successful, None otherwise.
         """
-        # Determine scholarship folder and name
-        if scholarship_folder is None:
-            # Try to infer from common patterns
-            for base in ["data/Delaney_Wings", "data/Evans_Wings"]:
-                if Path(base).exists():
-                    scholarship_folder = base
-                    break
-        
-        if scholarship_folder is None:
-            logger.error("Could not determine scholarship folder")
+        # Load analysis prompt from agents.json config
+        analysis_prompt = load_analysis_prompt(self.scholarship_folder, "recommendation")
+        if not analysis_prompt:
+            logger.error("No analysis prompt found for recommendation agent")
             return None
-        
-        scholarship_path = Path(scholarship_folder)
-        scholarship_name = get_scholarship_name_from_path(scholarship_path)
-        
-        # Load criteria
-        criteria = load_criteria(scholarship_path)
-        criteria_path = get_criteria_path(scholarship_path)
         
         # Process single WAI
         return self._process_single_wai(
-            wai_folder=scholarship_path / "Applications" / wai_number,
             wai_number=wai_number,
-            scholarship_name=scholarship_name,
-            criteria=criteria,
-            criteria_path=str(criteria_path),
+            analysis_prompt=analysis_prompt,
             model=model,
             fallback_model=fallback_model,
-            min_files=2,
             max_retries=max_retries
         )
     
-    def process_recommendations(
+    def process_batch(
         self,
-        scholarship_folder: str,
+        wai_numbers: list[str],
         model: str = "ollama/llama3.2:3b",
         fallback_model: str = "ollama/llama3:latest",
-        max_wai_folders: Optional[int] = 10,
-        min_files: int = 2,
         max_retries: int = 3,
         skip_processed: bool = True,
         overwrite: bool = False
     ) -> ProcessingResult:
-        """Process recommendations for all WAI folders in scholarship.
+        """Process recommendations for multiple WAI applications.
         
         Args:
-            scholarship_folder: Path to scholarship folder (e.g., "data/Delaney_Wings").
-            model: Primary LLM model to use (default: "ollama/llama3.2:3b").
-            fallback_model: Fallback model if primary fails (default: "ollama/llama3:latest").
-            max_wai_folders: Maximum number of WAI folders to process (default: 10).
-            min_files: Minimum recommendation files required (default: 2).
-            max_retries: Maximum retry attempts per WAI (default: 3).
-            skip_processed: Skip already processed WAI folders (default: True).
-            overwrite: Overwrite existing output files (default: False).
+            wai_numbers: List of WAI numbers to process.
+            model: Primary LLM model to use.
+            fallback_model: Fallback model if primary fails.
+            max_retries: Maximum retry attempts per WAI.
+            skip_processed: Skip already processed WAI folders.
+            overwrite: Overwrite existing output files.
         
         Returns:
             ProcessingResult with statistics and errors.
-        
-        Example:
-            >>> agent = RecommendationAgent()
-            >>> result = agent.process_recommendations(
-            ...     scholarship_folder="data/Delaney_Wings",
-            ...     max_wai_folders=5,
-            ...     min_files=2
-            ... )
         """
         start_time = time.time()
-        scholarship_path = Path(scholarship_folder)
-        
-        # Get scholarship name
-        scholarship_name = get_scholarship_name_from_path(scholarship_path)
         
         logger.info("="*60)
-        logger.info("Starting Recommendation Agent")
+        logger.info("Starting Recommendation Agent Batch")
         logger.info("="*60)
-        logger.info(f"Scholarship folder: {scholarship_folder}")
-        logger.info(f"Scholarship name: {scholarship_name}")
+        logger.info(f"Scholarship: {self.scholarship_name}")
         logger.info(f"Model: {model}")
-        logger.info(f"Fallback model: {fallback_model}")
-        logger.info(f"Max WAI folders: {max_wai_folders}")
-        logger.info(f"Min files required: {min_files}")
-        logger.info(f"Skip processed: {skip_processed}, Overwrite: {overwrite}")
+        logger.info(f"WAI count: {len(wai_numbers)}")
         
-        # Load criteria
-        criteria = load_criteria(scholarship_path)
-        criteria_path = get_criteria_path(scholarship_path)
-        logger.info(f"Loaded criteria from: {criteria_path}")
+        # Load analysis prompt from agents.json config
+        analysis_prompt = load_analysis_prompt(self.scholarship_folder, "recommendation")
+        if not analysis_prompt:
+            logger.error("No analysis prompt found for recommendation agent")
+            return ProcessingResult(
+                total=len(wai_numbers),
+                successful=0,
+                failed=len(wai_numbers),
+                skipped=0,
+                errors=[],
+                duration=0
+            )
         
-        # Scan for WAI folders
-        wai_folders = scan_scholarship_folder(str(scholarship_path))
-        logger.info(f"Found {len(wai_folders)} WAI folders")
-        
-        # Limit number of folders if specified
-        if max_wai_folders and len(wai_folders) > max_wai_folders:
-            wai_folders = wai_folders[:max_wai_folders]
-            logger.info(f"Limited to first {max_wai_folders} folders")
-        
-        # Process each WAI folder
+        # Process each WAI
         successful = 0
         failed = 0
         skipped = 0
         errors = []
         
-        for i, wai_folder in enumerate(wai_folders, 1):
-            wai_number = get_wai_number(wai_folder)
-            logger.info(f"\n[{i}/{len(wai_folders)}] Processing WAI: {wai_number}")
+        for i, wai_number in enumerate(wai_numbers, 1):
+            logger.info(f"\n[{i}/{len(wai_numbers)}] Processing WAI: {wai_number}")
             
             try:
                 # Check if already processed
                 output_path = get_recommendation_output_path(
                     Path("outputs"),
-                    scholarship_name,
+                    self.scholarship_name,
                     wai_number
                 )
                 
@@ -237,16 +208,12 @@ class RecommendationAgent:
                     skipped += 1
                     continue
                 
-                # Process this WAI folder
+                # Process this WAI
                 result = self._process_single_wai(
-                    wai_folder=wai_folder,
                     wai_number=wai_number,
-                    scholarship_name=scholarship_name,
-                    criteria=criteria,
-                    criteria_path=str(criteria_path),
+                    analysis_prompt=analysis_prompt,
                     model=model,
                     fallback_model=fallback_model,
-                    min_files=min_files,
                     max_retries=max_retries
                 )
                 
@@ -268,10 +235,9 @@ class RecommendationAgent:
         
         # Calculate statistics
         duration = time.time() - start_time
-        total = len(wai_folders)
         
         result = ProcessingResult(
-            total=total,
+            total=len(wai_numbers),
             successful=successful,
             failed=failed,
             skipped=skipped,
@@ -282,65 +248,42 @@ class RecommendationAgent:
         # Log summary
         logger.info("\n" + "="*60)
         logger.info("Processing complete!")
-        logger.info(f"Total WAI folders: {total}")
-        logger.info(f"Successful: {successful}")
-        logger.info(f"Failed: {failed}")
-        logger.info(f"Skipped: {skipped}")
-        logger.info(f"Total duration: {duration:.2f} seconds")
-        logger.info(f"Average per WAI: {result.average_per_wai:.2f} seconds")
+        logger.info(f"Total: {result.total}, Successful: {successful}, Failed: {failed}, Skipped: {skipped}")
+        logger.info(f"Duration: {duration:.2f}s, Average: {result.average_per_wai:.2f}s per WAI")
         logger.info("="*60)
         
         return result
     
     def _process_single_wai(
         self,
-        wai_folder: Path,
         wai_number: str,
-        scholarship_name: str,
-        criteria: str,
-        criteria_path: str,
+        analysis_prompt: str,
         model: str,
         fallback_model: str,
-        min_files: int,
         max_retries: int
     ) -> Optional[RecommendationData]:
-        """Process recommendations for a single WAI folder.
+        """Process recommendations for a single WAI application.
         
         Args:
-            wai_folder: Path to WAI folder.
             wai_number: WAI application number.
-            scholarship_name: Name of the scholarship.
-            criteria: Evaluation criteria text.
-            criteria_path: Path to criteria file.
+            analysis_prompt: Analysis prompt text from agents.json config.
             model: Primary LLM model.
             fallback_model: Fallback LLM model.
-            min_files: Minimum files required.
             max_retries: Maximum retry attempts.
         
         Returns:
             RecommendationData if successful, None otherwise.
         """
         try:
-            # Find recommendation files in unified output structure
-            # Attachments are now in outputs/{scholarship}/{WAI}/attachments/
             output_base = Path("outputs")
-            wai_attachments_dir = output_base / scholarship_name / wai_number / "attachments"
             
-            # find_recommendation_files expects base dir, so we pass the parent
-            # and it will look in {base}/{scholarship}/{WAI}/
-            # But now we need to look in {base}/{scholarship}/{WAI}/attachments/
-            # So we need to update the function call
-            rec_files = find_recommendation_files(
-                output_base,
-                scholarship_name,
-                wai_number,
-                max_files=2
+            # Find recommendation files using agents.json config
+            rec_files = find_input_files_for_agent(
+                self.scholarship_folder, "recommendation", wai_number, output_base
             )
             
-            # Validate files
-            is_valid, error_msg = validate_recommendation_files(rec_files, min_files)
-            if not is_valid:
-                logger.warning(f"  {error_msg}")
+            if not rec_files:
+                logger.warning(f"  No recommendation files found for {wai_number}")
                 return None
             
             logger.info(f"  Found {len(rec_files)} recommendation files")
@@ -365,7 +308,7 @@ class RecommendationAgent:
                     # Call LLM
                     llm_response = self._analyze_with_llm(
                         rec_texts,
-                        criteria,
+                        analysis_prompt,
                         current_model
                     )
                     
@@ -378,10 +321,15 @@ class RecommendationAgent:
                         continue
                     
                     # Validate and fix
-                    is_valid, fixed_data, errors = validate_and_fix_iterative(
-                        json_data,
-                        self.schema,
-                        max_attempts=3
+                    repair_template = load_repair_prompt(self.scholarship_folder, "recommendation")
+                    is_valid, fixed_data, errors = validate_and_repair_once(
+                        data=json_data,
+                        schema=self.schema,
+                        repair_template=repair_template,
+                        model=current_model,
+                        system_prompt=SYSTEM_PROMPT,
+                        local_fix_attempts=3,
+                        repair_max_tokens=3000,
                     )
                     
                     if is_valid:
@@ -390,6 +338,7 @@ class RecommendationAgent:
                         break
                     else:
                         logger.warning(f"  Validation failed: {len(errors)} errors")
+
                         if attempt < max_retries - 1:
                             current_model = fallback_model
                         
@@ -420,14 +369,16 @@ class RecommendationAgent:
                 score_breakdown=analysis_data.get("score_breakdown", {}),
                 source_files=source_files,
                 model_used=current_model,
-                criteria_used=criteria_path,
+                criteria_used=(load_agent_config(self.scholarship_folder, "recommendation") or {}).get(
+                    "analysis_prompt", "prompts/recommendation_analysis.txt"
+                ),
                 scores=scores
             )
             
             # Save to JSON
             output_path = get_recommendation_output_path(
                 Path("outputs"),
-                scholarship_name,
+                self.scholarship_name,
                 wai_number
             )
             self._save_json(rec_data, output_path)
@@ -441,14 +392,14 @@ class RecommendationAgent:
     def _analyze_with_llm(
         self,
         recommendation_texts: list[str],
-        criteria: str,
+        analysis_prompt: str,
         model: str
     ) -> str:
         """Call LLM to analyze recommendations.
         
         Args:
             recommendation_texts: List of recommendation letter texts.
-            criteria: Evaluation criteria.
+            analysis_prompt: Analysis prompt from agents.json config.
             model: LLM model to use.
         
         Returns:
@@ -457,8 +408,8 @@ class RecommendationAgent:
         Raises:
             Exception: If LLM call fails.
         """
-        # Build prompt (no longer passing schema - it's embedded in the prompt)
-        prompt = build_analysis_prompt(recommendation_texts, criteria)
+        # Build prompt using the analysis prompt from config
+        prompt = build_analysis_prompt(recommendation_texts, analysis_prompt)
         
         # Call LLM
         response = completion(

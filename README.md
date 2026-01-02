@@ -1,322 +1,254 @@
-# WAI 2026 Python - Scholarship Application Processing
+# WAI-Bee — AI-Powered Scholarship Evaluation System
 
-This project contains an Application Agent for processing scholarship applications and extracting applicant information using AI.
+An AI-powered, schema-driven scholarship application evaluation system for Women in Aviation International (WAI). The system uses multiple specialized agents to analyze application materials and produce fair, auditable, and repeatable evaluations.
 
-## Features
+## Key Features
 
-- **Application Agent**: Automatically processes scholarship applications
-- **Document Parsing**: Uses Docling to parse PDF and DOCX files (optimized with single converter instance)
-- **AI Extraction**: Uses LLM to extract applicant name, city, and country
-- **Retry Logic**: Automatic retry with configurable attempts (default: 3)
-- **Fallback Model**: Optional fallback to different model if primary fails
-- **JSON Output**: Saves extracted data as JSON files in organized output structure
-- **Performance Tracking**: Detailed timing metrics for processing
+- **Multi-Agent Architecture**: Five specialized agents analyze different aspects of applications
+- **Schema-Driven Evaluation**: All criteria defined in human-authored `config.yml`, validated and generated into machine-consumable artifacts
+- **Auditable & Repeatable**: Deterministic prompt generation, schema validation, and LLM repair loops
+- **Multi-Tenancy**: Support for multiple scholarships with isolated configurations
+- **REST API**: FastAPI-based API for accessing scores, statistics, and analyses
+- **Docker Deployment**: Production-ready containerized deployment
+
+## Architecture Overview
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                    Scholarship Configuration                     │
+│                         config.yml                               │
+│              (Single source of truth per scholarship)            │
+└─────────────────────────────────────────────────────────────────┘
+                                │
+                                ▼
+┌─────────────────────────────────────────────────────────────────┐
+│                    Artifact Generation                           │
+│   scripts/generate_artifacts.py → agents.json, schemas, prompts │
+└─────────────────────────────────────────────────────────────────┘
+                                │
+                                ▼
+┌─────────────────────────────────────────────────────────────────┐
+│                     Runtime Evaluation                           │
+│  ┌───────────┐ ┌───────────┐ ┌───────────┐ ┌───────────────────┐│
+│  │Attachment │ │Application│ │  Resume   │ │   Essay Agent     ││
+│  │  Agent    │ │  Agent    │ │  Agent    │ │                   ││
+│  └───────────┘ └───────────┘ └───────────┘ └───────────────────┘│
+│  ┌───────────────────┐                                          │
+│  │Recommendation     │  →  Weighted Score Aggregation           │
+│  │Agent              │                                          │
+│  └───────────────────┘                                          │
+└─────────────────────────────────────────────────────────────────┘
+```
 
 ## Project Structure
 
 ```
-wai_2026_python/
-├── agents/
-│   └── application_agent/      # Main Application Agent
-│       ├── agent.py            # Agent implementation
-│       └── prompts.py          # LLM prompts
-├── utils/
-│   ├── folder_scanner.py       # Scan scholarship folders
-│   ├── file_identifier.py      # Identify application files
-│   ├── document_parser.py      # Parse documents with Docling
-│   └── json_writer.py          # Save JSON output
-├── models/
-│   └── application_data.py     # Data models
-├── examples/
-│   └── run_application_agent.py # Example usage
-└── data/
-    └── Delaney_Wings/
-        └── Applications/       # Scholarship applications
+wai-bee/
+├── agents/                     # Scoring agents
+│   ├── academic_agent/         # Resume/CV analysis (aliased as "resume")
+│   ├── application_agent/      # Application form analysis
+│   ├── attachment_agent/       # PII redaction & text extraction
+│   ├── essay_agent/            # Personal essay analysis
+│   └── recommendation_agent/   # Recommendation letter analysis
+├── bee_agents/                 # FastAPI server & API
+├── data/                       # Scholarship configurations
+│   ├── WAI-Harvard-June-2026/
+│   │   ├── config.yml          # Human-authored configuration
+│   │   ├── agents.json         # Generated agent config
+│   │   ├── prompts/            # Generated analysis & repair prompts
+│   │   └── schemas_generated/  # Generated output schemas
+│   ├── Delaney_Wings/
+│   └── Evans_Wings/
+├── docs/                       # Documentation
+├── models/                     # Pydantic data models
+├── outputs/                    # Processing results
+├── schemas/                    # Shared JSON schemas
+├── scripts/                    # Generation & validation scripts
+├── utils/                      # Shared utilities
+└── workflows/                  # Workflow orchestration
 ```
 
-## Setup
+## Quick Start
 
-### 1. Create Virtual Environment
+### 1. Setup Environment
 
 ```bash
+# Create and activate virtual environment
 python3 -m venv venv
-```
-
-### 2. Activate Virtual Environment
-
-```bash
 source venv/bin/activate
-pip install --upgrade pip
-```
 
-### 3. Install Dependencies
-
-```bash
+# Install dependencies
 pip install -r requirements.txt
-```
 
-### 4. Configure Environment Variables
-
-Copy the example environment file and customize it:
-
-```bash
+# Copy environment template
 cp .env.example .env
 ```
 
-Edit `.env` to configure:
-- **LLM models** (Ollama or OpenAI)
-- **Processing limits** (max applications, retries)
-- **Directory paths** (data, outputs, schemas)
-- **PII redaction settings**
-- **Logging configuration**
+### 2. Install Ollama (for local LLM)
 
-See `.env.example` for all available options and defaults.
-
-### 5. Install and Run Ollama
-
-The Application Agent uses Ollama for local LLM inference.
-
-1. Install Ollama from https://ollama.ai
-2. Pull the required models:
 ```bash
-ollama pull llama3.2:1b          # Primary model
-ollama pull llama3:latest        # Optional fallback model
+# Install from https://ollama.ai, then pull models
+ollama pull llama3.2:3b
+ollama pull llama3:latest  # fallback model
 ```
-3. Make sure Ollama is running (it starts automatically after installation)
 
-## Usage
+### 3. Configure a Scholarship
 
-### Using Configuration File (Recommended)
+Create `data/<scholarship-name>/config.yml` with evaluation criteria. See `docs/SCHOLARSHIP_PROCESS.md` for the complete specification.
 
-The easiest way to run the system is using the configuration from `.env`:
+### 4. Generate Artifacts
+
+```bash
+# Validate and generate all artifacts
+python scripts/generate_all.py data/<scholarship-name>
+```
+
+This produces:
+- `agents.json` — Agent configuration with prompts and schemas
+- `prompts/*.txt` — Analysis and repair prompts
+- `schemas_generated/*.json` — Output validation schemas
+- `scholarship.json` — Locked criteria contract
+
+### 5. Process Applications
 
 ```python
-from utils.config import config
-from agents.application_agent import ApplicationAgent
+from pathlib import Path
+from workflows import ScholarshipProcessingWorkflow
 
-# Initialize the agent
-agent = ApplicationAgent()
-
-# Process applications using config values
-result = agent.process_applications(
-    scholarship_folder=str(config.get_scholarship_folder("Delaney_Wings") / "Applications"),
-    max_applications=config.MAX_APPLICATIONS,
-    skip_processed=config.SKIP_PROCESSED,
-    overwrite=config.OVERWRITE_EXISTING,
-    output_dir=str(config.OUTPUTS_DIR),
-    model=config.PRIMARY_MODEL,
-    fallback_model=config.FALLBACK_MODEL,
-    max_retries=config.MAX_RETRIES
+# Initialize workflow
+workflow = ScholarshipProcessingWorkflow(
+    scholarship_folder=Path("data/WAI-Harvard-June-2026"),
+    outputs_dir=Path("outputs")
 )
 
-# Check results
-print(f"Successful: {result.successful}/{result.total}")
-print(f"Failed: {result.failed}")
+# Process all applicants
+results = workflow.process_all_applicants()
+print(f"Processed: {results['successful']}/{results['total_applicants']}")
 ```
 
-### Manual Configuration (Advanced)
-
-You can also override configuration values programmatically:
+Or use individual agents:
 
 ```python
-from agents.application_agent import ApplicationAgent
+from pathlib import Path
+from agents.academic_agent import AcademicAgent
 
-# Initialize the agent
-agent = ApplicationAgent()
+# Initialize agent with scholarship config
+agent = AcademicAgent(Path("data/WAI-Harvard-June-2026"))
 
-# Process applications with custom settings
-result = agent.process_applications(
-    scholarship_folder="data/Delaney_Wings/Applications",
-    max_applications=10,           # Optional: limit number to process
-    skip_processed=True,           # Skip already processed applications
-    overwrite=False,               # Don't overwrite existing JSON files
-    model="ollama/llama3.2:1b",    # Primary model to use
-    fallback_model="ollama/llama3:latest",  # Optional: fallback if primary fails
-    max_retries=3                  # Number of retry attempts per model
-)
-
-# Check results
-print(f"Successful: {result.successful}/{result.total}")
-print(f"Failed: {result.failed}")
-print(f"Total duration: {result.total_duration:.2f} seconds")
-print(f"Average per application: {result.avg_duration_per_app:.2f} seconds")
-```
-
-### Retry and Fallback Behavior
-
-The agent implements intelligent retry logic with automatic quality checking:
-
-1. **Primary Model Attempts**: Tries extraction with primary model up to `max_retries` times
-2. **Quality Check**: If extraction succeeds but returns "Unknown" for name, city, or country, automatically retries
-3. **Fallback Model**: If primary model fails or consistently returns Unknown values, tries `fallback_model`
-4. **Fallback Retries**: The fallback model also gets `max_retries` attempts with quality checking
-5. **Best Result**: Returns the best result obtained, preferring complete data over partial data
-6. **Final Failure**: Only marks as failed if all attempts with both models fail
-
-**Example Flow:**
-- Attempt 1 (llama3.2:1b): Extracts name but city/country are "Unknown" → Retry
-- Attempt 2 (llama3.2:1b): Successfully extracts all fields → Success!
-
-This ensures maximum data quality and success rate while handling temporary LLM issues or model-specific limitations.
-
-### Run Example Scripts
-
-**Using configuration file (recommended):**
-```bash
-python examples/run_with_config.py
-```
-
-**Using manual configuration:**
-```bash
-python examples/run_application_agent.py
-```
-
-## How It Works
-
-1. **Scan**: The agent scans the scholarship folder for WAI number subfolders
-2. **Identify**: For each folder, it identifies the application file (pattern: `{WAI}_{xx}.pdf`)
-3. **Parse**: Uses Docling to extract text from the PDF/DOCX document
-4. **Extract**: Uses LLM to extract applicant name, city, and country
-5. **Save**: Saves the extracted data as JSON in `outputs/application/{scholarship}/{WAI}/` folder
-6. **Track**: Records timing information for performance monitoring
-
-## File Patterns
-
-### Input Files
-- Application files: `{WAI}_{xx}.pdf` or `{WAI}_{xx}.docx`
-- Example: `75179_19.pdf`, `77747_1.pdf`
-
-### Output Files
-- JSON files saved in: `outputs/application/{scholarship_name}/{WAI}/{WAI}_{xx}_application.json`
-- Example: `outputs/application/Delaney_Wings/75179/75179_19_application.json`
-
-### Output Format
-
-```json
-{
-  "wai_number": "75179",
-  "name": "John Doe",
-  "city": "Boston",
-  "country": "United States",
-  "source_file": "75179_19.pdf",
-  "processed_date": "2025-12-05T17:54:00Z"
-}
-```
-
-## Configuration
-
-### LLM Model
-
-The agent uses Ollama for local LLM inference. Specify the model in `process_applications`:
-
-```python
-agent = ApplicationAgent()
-
-# Use Ollama with llama3.2:1b (default)
-result = agent.process_applications(
-    scholarship_folder="data/Delaney_Wings/Applications",
-    model="ollama/llama3.2:1b"
-)
-
-# Use a different Ollama model
-result = agent.process_applications(
-    scholarship_folder="data/Delaney_Wings/Applications",
+# Analyze a single applicant's resume
+result = agent.analyze_resume(
+    wai_number="WAI-12345",
     model="ollama/llama3.2:3b"
 )
-
-# Or use OpenAI (requires OPENAI_API_KEY)
-result = agent.process_applications(
-    scholarship_folder="data/Delaney_Wings/Applications",
-    model="gpt-4o-mini"
-)
+print(f"Overall score: {result.scores['overall_score']}")
 ```
 
-**Note**: Make sure Ollama is running and the model is pulled before use:
+### 6. Run the API Server
+
 ```bash
-ollama pull llama3.2:1b
+python -m bee_agents.api --scholarship WAI-Harvard-June-2026 --port 8200
 ```
 
-### Processing Options
+Access the API at http://localhost:8200/docs
 
-- `scholarship_folder`: Path to the scholarship applications folder (required)
-- `max_applications`: Limit the number of applications to process (optional)
-- `skip_processed`: Skip applications that already have JSON output (default: True)
-- `overwrite`: Overwrite existing JSON files (default: False)
-- `output_dir`: Base output directory for JSON files (default: "outputs")
-- `model`: LLM model to use (default: "ollama/llama3.2:1b")
+## Agents
 
-### Output Structure
+| Agent | Purpose | Input | Output |
+|-------|---------|-------|--------|
+| **Attachment** | Extract text, redact PII | PDF/DOCX attachments | Cleaned text files |
+| **Application** | Evaluate completeness & eligibility | Application form | Facet scores |
+| **Resume** | Evaluate academic profile | Resume/CV | Facet scores |
+| **Essay** | Evaluate motivation & character | Personal essays | Facet scores |
+| **Recommendation** | Evaluate third-party endorsements | Recommendation letters | Facet scores |
 
-```
-outputs/
-└── application/
-    ├── Delaney_Wings/
-    │   ├── 75179/
-    │   │   └── 75179_19_application.json
-    │   ├── 77747/
-    │   │   └── 77747_1_application.json
-    │   └── ...
-    └── Evans_Wings/
-        └── ...
-```
+## Configuration System
 
-## Error Handling & Monitoring
+The system uses a **config-driven architecture**:
 
-The agent includes comprehensive error handling and performance tracking:
-- Logs all errors with details
-- Continues processing even if individual applications fail
-- Returns a summary with success/failure counts
-- Provides detailed error messages for debugging
-- **Tracks timing information**:
-  - Total processing duration
-  - Average time per application
-  - Start and end timestamps
+1. **`config.yml`** — Human-authored, single source of truth per scholarship
+2. **`agents.json`** — Generated, machine-consumable agent configuration
+3. **`prompts/*.txt`** — Generated LLM prompts with schema placeholders
+4. **`schemas_generated/*.json`** — Generated JSON schemas for output validation
 
-### Processing Result
+### Validation & Generation
 
-The `ProcessingResult` object includes:
-```python
-result.total              # Total applications processed
-result.successful         # Successfully processed count
-result.failed            # Failed count
-result.errors            # List of error details
-result.total_duration    # Total time in seconds
-result.avg_duration_per_app  # Average time per application
+```bash
+# Validate configuration
+python scripts/validate_config.py data/<scholarship>
+
+# Generate all artifacts
+python scripts/generate_artifacts.py data/<scholarship>
+
+# Generate prompts only
+python scripts/generate_prompts.py data/<scholarship>
 ```
 
-## Dependencies
+See `docs/SCHOLARSHIP_PROCESS.md` for the complete workflow.
 
-Key dependencies:
-- `docling`: Document parsing (PDF/DOCX)
-- `litellm`: LLM interface
-- `pydantic`: Data validation
-- `beeai-framework`: Agent framework
+## API Endpoints
 
-See `requirements.txt` for complete list.
+| Endpoint | Description |
+|----------|-------------|
+| `GET /health` | Health check |
+| `GET /top_scores` | Top scoring applications |
+| `GET /score/{wai_number}` | Score for specific application |
+| `GET /statistics` | Aggregated statistics |
+| `GET /agents` | Agent configuration |
+| `GET /application/{wai_number}` | Application analysis |
+| `GET /academic/{wai_number}` | Academic/resume analysis |
+| `GET /essay/{wai_number}` | Essay analysis |
+| `GET /recommendation/{wai_number}` | Recommendation analysis |
+
+## Docker Deployment
+
+```bash
+# Build and run
+docker-compose up --build
+
+# API available at http://localhost:8200
+```
+
+See `docs/DOCKER_DEPLOYMENT.MD` for production configuration.
+
+## Documentation
+
+| Document | Description |
+|----------|-------------|
+| `docs/SCHOLARSHIP_PROCESS.md` | **Authoritative** — End-to-end process for config → validation → generation → runtime |
+| `docs/AGENT_ARCHITECTURE.md` | Shared agent patterns, prompt loading, LLM repair |
+| `docs/MULTI_TENANCY_DESIGN.MD` | Multi-scholarship architecture |
+| `docs/DOCKER_DEPLOYMENT.MD` | Production deployment guide |
+| `docs/API_SERVER_ARCHITECTURE.MD` | API design and endpoints |
 
 ## Development
 
-### Adding New Features
+### Running Tests
 
-1. Create new utilities in `utils/`
-2. Update data models in `models/`
-3. Extend the agent in `agents/application_agent/`
+```bash
+pytest tests/ -v
+```
 
-### Testing
+### Adding a New Scholarship
 
-Test with a small number of applications first:
+1. Create `data/<scholarship-name>/config.yml`
+2. Run `python scripts/validate_config.py data/<scholarship-name>`
+3. Run `python scripts/generate_artifacts.py data/<scholarship-name>`
+4. Process applications with the workflow or individual agents
 
-```python
-result = agent.process_applications(
-    scholarship_folder="data/Delaney_Wings/Applications",
-    max_applications=5  # Test with 5 applications
-)
+### Code Quality
+
+```bash
+# Lint check
+python -m py_compile agents/**/*.py utils/*.py
+
+# Type checking (optional)
+mypy agents/ utils/
 ```
 
 ## License
 
-[Add your license here]
+MIT License — See LICENSE file
 
-## Contact
+## Author
 
-[Add contact information]
+Pat G Cappelaere, IBM Federal Consulting

@@ -131,43 +131,7 @@ CRITICAL JSON FORMAT REQUIREMENTS:
     return prompt
 
 
-def build_retry_prompt(
-    original_response: str,
-    validation_errors: list[str]
-) -> str:
-    """Build a retry prompt when validation fails.
-    
-    Args:
-        original_response: The LLM's original response that failed validation.
-        validation_errors: List of validation error messages.
-    
-    Returns:
-        Retry prompt string.
-    
-    Example:
-        >>> original = '{"summary": "Good"}'  # Missing fields
-        >>> errors = ["Missing required field: profile_features"]
-        >>> retry_prompt = build_retry_prompt(original, errors)
-    """
-    errors_str = "\n".join(f"- {error}" for error in validation_errors)
-    
-    prompt = f"""Your previous response had validation errors. Please fix them and provide a corrected response.
-
-VALIDATION ERRORS:
-{errors_str}
-
-YOUR PREVIOUS RESPONSE:
-{original_response}
-
-Please provide a corrected JSON response that:
-1. Fixes all validation errors listed above
-2. Includes all required fields
-3. Uses correct data types
-4. Follows the exact structure specified
-
-CRITICAL: Respond with ONLY the corrected JSON object, no additional text, no markdown code blocks."""
-
-    return prompt
-
+# Note: Repair prompts are now generated and loaded from agents.json via utils.prompt_loader.
+# The build_retry_prompt function was removed as it is no longer used.
 
 # Made with Bob

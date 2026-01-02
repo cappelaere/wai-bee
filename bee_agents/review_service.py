@@ -181,13 +181,13 @@ def load_all_reviews_for_scholarship(scholarship: str) -> List[Dict[str, Any]]:
     return results
 
 
-def generate_final_reviews_csv(
+def generate_aggregate_reviews(
     scholarship: str,
     base_output_dir: Path | None = None,
 ) -> Tuple[Path, int, List[Dict[str, Any]]]:
-    """Generate a CSV summarizing all reviews for a scholarship.
+    """Generate an aggregate summarizing all reviews for a scholarship.
 
-    The CSV will be written to:
+    A CSV will also be written to:
 
         outputs/{Scholarship}/reviews/final_reviews_summary.csv
 

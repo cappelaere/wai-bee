@@ -12,12 +12,12 @@ License: MIT
 Example:
     Basic usage of the Academic Agent::
 
+        from pathlib import Path
         from agents.academic_agent import AcademicAgent
         
-        agent = AcademicAgent()
-        result = agent.process_resumes(
-            scholarship_folder="data/Delaney_Wings",
-            max_wai_folders=10,
+        agent = AcademicAgent(Path("data/WAI-Harvard-June-2026"))
+        result = agent.process_batch(
+            wai_numbers=["WAI-12345", "WAI-12346"],
             model="ollama/llama3.2:3b"
         )
         
@@ -28,18 +28,15 @@ Attributes:
 """
 
 import json
-import logging, traceback
-import os
+import logging
 import time
 from pathlib import Path
 from typing import Optional
 
-# Suppress LiteLLM's verbose logging
-os.environ["LITELLM_LOG"] = "ERROR"
-import litellm
-litellm.suppress_debug_info = True
-
 from litellm import completion
+
+from utils.llm_config import configure_litellm
+configure_litellm()
 
 from models.academic_data import (
     AcademicData,
@@ -48,68 +45,81 @@ from models.academic_data import (
 )
 from utils.folder_scanner import scan_scholarship_folder, get_wai_number
 from utils.resume_scanner import (
-    find_resume_file,
     read_resume_text,
     get_resume_output_path,
-    is_resume_processed,
-    get_scholarship_name_from_path,
-    validate_resume_file
+    is_resume_processed
 )
-from utils.criteria_loader import load_criteria
+from utils.prompt_loader import load_analysis_prompt, load_schema_path, load_repair_prompt, load_agent_config
+from utils.attachment_finder import find_input_files_for_agent
 from utils.schema_validator import (
     load_schema,
-    validate_and_fix_iterative,
     extract_json_from_text
 )
-from .prompts import SYSTEM_PROMPT, build_analysis_prompt, build_retry_prompt
+from utils.llm_repair import validate_and_repair_once, llm_repair_json
+from .prompts import SYSTEM_PROMPT, build_analysis_prompt
 
-logger = logging.getLogger()
+logger = logging.getLogger(__name__)
 
 
 class AcademicAgent:
-    """Agent for analyzing academic profiles using LLM.
+    """Agent for analyzing academic/resume profiles using LLM.
     
     This agent processes resume/CV files from scholarship applications,
     analyzes them using LLM with scholarship-specific criteria, and generates
-    structured JSON output with scores and detailed academic analysis.
+    structured JSON output with scores and detailed analysis.
     
     Attributes:
+        scholarship_folder: Path to scholarship data folder.
         schema: JSON schema for output validation.
-        schema_path: Path to the schema file.
     
     Example:
-        >>> agent = AcademicAgent()
-        >>> result = agent.process_resumes(
-        ...     scholarship_folder="data/Delaney_Wings",
-        ...     model="ollama/llama3.2:3b",
-        ...     max_wai_folders=10
-        ... )
-        >>> print(f"Success rate: {result.successful}/{result.total}")
+        >>> agent = AcademicAgent(Path("data/WAI-Harvard-June-2026"))
+        >>> result = agent.analyze_resume(wai_number="WAI-12345")
+        >>> print(f"Overall score: {result.scores.overall_score}")
     """
     
-    def __init__(self, schema_path: Optional[Path] = None):
-        """Initialize the Academic Agent.
+    def __init__(self, scholarship_folder: Path):
+        """Initialize the Academic Agent with scholarship configuration.
         
         Args:
-            schema_path: Path to JSON schema file. If None, uses default path.
+            scholarship_folder: Path to scholarship data folder containing agents.json.
+            
+        Raises:
+            FileNotFoundError: If the schema file cannot be found.
+            ValueError: If the schema path is not configured in agents.json.
         """
-        self.schema_path = schema_path or Path("schemas/resume_agent_schema.json")
-        self.schema = load_schema(self.schema_path)
-        logger.info("Academic Agent initialized")
+        self.scholarship_folder = scholarship_folder
+        self.scholarship_name = scholarship_folder.name
+        
+        # Load schema from agents.json config (resume artifact)
+        schema_path = load_schema_path(scholarship_folder, "resume")
+        if not schema_path:
+            raise ValueError(
+                f"No schema path configured for 'resume' agent in {scholarship_folder}/agents.json. "
+                f"Run generate_artifacts.py to create the schema."
+            )
+        
+        if not schema_path.exists():
+            raise FileNotFoundError(
+                f"Schema file not found: {schema_path}. "
+                f"Run generate_artifacts.py to create the schema."
+            )
+        
+        self.schema = load_schema(schema_path)
+        logger.info(f"Loaded schema from: {schema_path}")
+        logger.info(f"Academic Agent initialized for {self.scholarship_name}")
     
-    def analyze_academic_profile(
+    def analyze_resume(
         self,
         wai_number: str,
-        scholarship_folder: Optional[str] = None,
         model: str = "ollama/llama3.2:3b",
         fallback_model: str = "ollama/llama3:latest",
         max_retries: int = 3
-    ) -> Optional['AcademicData']:
-        """Analyze academic profile for a single WAI application.
+    ) -> Optional[AcademicData]:
+        """Analyze resume/academic profile for a single WAI application.
         
         Args:
             wai_number: WAI application number.
-            scholarship_folder: Path to scholarship folder (e.g., "data/Delaney_Wings").
             model: Primary LLM model to use.
             fallback_model: Fallback model if primary fails.
             max_retries: Maximum retry attempts.
@@ -117,109 +127,79 @@ class AcademicAgent:
         Returns:
             AcademicData if successful, None otherwise.
         """
-        from pathlib import Path
-        from utils.folder_scanner import get_scholarship_name_from_path
-        from utils.criteria_loader import load_criteria, get_criteria_path
-        
-        # Determine scholarship folder and name
-        if scholarship_folder is None:
-            # Try to infer from common patterns
-            for base in ["data/Delaney_Wings", "data/Evans_Wings"]:
-                if Path(base).exists():
-                    scholarship_folder = base
-                    break
-        
-        if scholarship_folder is None:
-            logger.error("Could not determine scholarship folder")
+        # Load analysis prompt from agents.json config (resume artifact)
+        analysis_prompt = load_analysis_prompt(self.scholarship_folder, "resume")
+        if not analysis_prompt:
+            logger.error("No analysis prompt found for resume agent")
             return None
-        
-        scholarship_path = Path(scholarship_folder)
-        scholarship_name = get_scholarship_name_from_path(scholarship_path)
-        
-        # Load criteria
-        criteria = load_criteria(scholarship_path)
-        criteria_path = get_criteria_path(scholarship_path)
         
         # Process single WAI
         return self._process_single_wai(
-            wai_folder=scholarship_path / "Applications" / wai_number,
             wai_number=wai_number,
-            scholarship_name=scholarship_name,
-            criteria=criteria,
-            criteria_path=str(criteria_path),
+            analysis_prompt=analysis_prompt,
             model=model,
             fallback_model=fallback_model,
             max_retries=max_retries
         )
     
-    def process_resumes(
+    def process_batch(
         self,
-        scholarship_folder: str,
+        wai_numbers: list[str],
         model: str = "ollama/llama3.2:3b",
         fallback_model: str = "ollama/llama3:latest",
-        max_wai_folders: Optional[int] = 10,
         max_retries: int = 3,
         skip_processed: bool = True,
         overwrite: bool = False
     ) -> ProcessingResult:
-        """Process resumes for all WAI folders in scholarship.
+        """Process resumes for multiple WAI applications.
         
         Args:
-            scholarship_folder: Path to scholarship folder (e.g., "data/Delaney_Wings").
-            model: Primary LLM model to use (default: "ollama/llama3.2:3b").
-            fallback_model: Fallback model if primary fails (default: "ollama/llama3:latest").
-            max_wai_folders: Maximum number of WAI folders to process (default: 10).
-            max_retries: Maximum retry attempts per WAI (default: 3).
-            skip_processed: Skip already processed WAI folders (default: True).
-            overwrite: Overwrite existing output files (default: False).
+            wai_numbers: List of WAI numbers to process.
+            model: Primary LLM model to use.
+            fallback_model: Fallback model if primary fails.
+            max_retries: Maximum retry attempts per WAI.
+            skip_processed: Skip already processed WAI folders.
+            overwrite: Overwrite existing output files.
         
         Returns:
             ProcessingResult with statistics and errors.
-        
-        Example:
-            >>> agent = AcademicAgent()
-            >>> result = agent.process_resumes(
-            ...     scholarship_folder="data/Delaney_Wings/Applications",
-            ...     max_wai_folders=5
-            ... )
-            >>> print(f"Processed {result.successful} resumes")
         """
         start_time = time.time()
-        scholarship_path = Path(scholarship_folder)
-        scholarship_name = get_scholarship_name_from_path(scholarship_path)
         
-        # Load criteria once for all WAI folders
-        criteria = load_criteria(scholarship_path, "academic")
+        logger.info("="*60)
+        logger.info("Starting Academic/Resume Agent Batch")
+        logger.info("="*60)
+        logger.info(f"Scholarship: {self.scholarship_name}")
+        logger.info(f"Model: {model}")
+        logger.info(f"WAI count: {len(wai_numbers)}")
         
-        # Handle both "Applications" subfolder and direct scholarship folder
-        if scholarship_path.name == "Applications":
-            criteria_folder = scholarship_path.parent
-        else:
-            criteria_folder = scholarship_path
-        criteria_path = str(criteria_folder / "criteria" / "academic_criteria.txt")
+        # Load analysis prompt from agents.json config (resume artifact)
+        analysis_prompt = load_analysis_prompt(self.scholarship_folder, "resume")
+        if not analysis_prompt:
+            logger.error("No analysis prompt found for resume agent")
+            return ProcessingResult(
+                total=len(wai_numbers),
+                successful=0,
+                failed=len(wai_numbers),
+                skipped=0,
+                errors=[],
+                duration=0
+            )
         
-        logger.info(f"Processing academic profiles for: {scholarship_name}")
-        logger.info(f"Using criteria: {criteria_path}")
-        
-        # Scan for WAI folders
-        wai_folders = scan_scholarship_folder(scholarship_path, max_folders=max_wai_folders)
-        logger.info(f"Found {len(wai_folders)} WAI folders to process")
-        
-        # Process each WAI folder
+        # Process each WAI
         successful = 0
         failed = 0
         skipped = 0
         errors = []
         
-        for idx, wai_folder in enumerate(wai_folders, 1):
-            wai_number = get_wai_number(wai_folder)
-            logger.info(f"\nProcessing {idx}/{len(wai_folders)}: WAI {wai_number}")
+        for idx, wai_number in enumerate(wai_numbers, 1):
+            logger.info(f"\n[{idx}/{len(wai_numbers)}] Processing WAI: {wai_number}")
             
             try:
                 # Check if already processed
                 output_path = get_resume_output_path(
                     Path("outputs"),
-                    scholarship_name,
+                    self.scholarship_name,
                     wai_number
                 )
                 
@@ -230,11 +210,8 @@ class AcademicAgent:
                 
                 # Process this WAI
                 result = self._process_single_wai(
-                    wai_folder=wai_folder,
                     wai_number=wai_number,
-                    scholarship_name=scholarship_name,
-                    criteria=criteria,
-                    criteria_path=criteria_path,
+                    analysis_prompt=analysis_prompt,
                     model=model,
                     fallback_model=fallback_model,
                     max_retries=max_retries
@@ -258,10 +235,9 @@ class AcademicAgent:
         
         # Calculate statistics
         duration = time.time() - start_time
-        total = len(wai_folders)
         
         result = ProcessingResult(
-            total=total,
+            total=len(wai_numbers),
             successful=successful,
             failed=failed,
             skipped=skipped,
@@ -272,35 +248,25 @@ class AcademicAgent:
         # Log summary
         logger.info("\n" + "="*60)
         logger.info("Processing complete!")
-        logger.info(f"Total WAI folders: {total}")
-        logger.info(f"Successful: {successful}")
-        logger.info(f"Failed: {failed}")
-        logger.info(f"Skipped: {skipped}")
-        logger.info(f"Total duration: {duration:.2f} seconds")
-        logger.info(f"Average per WAI: {result.average_per_wai:.2f} seconds")
+        logger.info(f"Total: {result.total}, Successful: {successful}, Failed: {failed}, Skipped: {skipped}")
+        logger.info(f"Duration: {duration:.2f}s, Average: {result.average_per_wai:.2f}s per WAI")
         logger.info("="*60)
         
         return result
     
     def _process_single_wai(
         self,
-        wai_folder: Path,
         wai_number: str,
-        scholarship_name: str,
-        criteria: str,
-        criteria_path: str,
+        analysis_prompt: str,
         model: str,
         fallback_model: str,
         max_retries: int
     ) -> Optional[AcademicData]:
-        """Process resume for a single WAI folder.
+        """Process resume for a single WAI application.
         
         Args:
-            wai_folder: Path to WAI folder.
             wai_number: WAI application number.
-            scholarship_name: Name of the scholarship.
-            criteria: Evaluation criteria text.
-            criteria_path: Path to criteria file.
+            analysis_prompt: Analysis prompt text from agents.json config.
             model: Primary LLM model.
             fallback_model: Fallback LLM model.
             max_retries: Maximum retry attempts.
@@ -309,20 +275,19 @@ class AcademicAgent:
             AcademicData if successful, None otherwise.
         """
         try:
-            # Find resume file (3rd file) in unified output structure
             output_base = Path("outputs")
-            resume_file = find_resume_file(
-                output_base,
-                scholarship_name,
-                wai_number
+            
+            # Find resume files using agents.json config
+            resume_files = find_input_files_for_agent(
+                self.scholarship_folder, "resume", wai_number, output_base
             )
             
-            # Validate file
-            is_valid, error_msg = validate_resume_file(resume_file)
-            if not is_valid:
-                logger.warning(f"  {error_msg}")
+            if not resume_files:
+                logger.warning(f"  No resume file found for {wai_number}")
                 return None
             
+            # Use first file (resume is typically a single file)
+            resume_file = resume_files[0]
             logger.info(f"  Found resume file: {resume_file.name}")
             
             # Read resume text
@@ -335,23 +300,58 @@ class AcademicAgent:
                     logger.info(f"  Analysis attempt {attempt}/{max_retries} with {current_model}")
                     
                     # Analyze with LLM
-                    response_text = self._analyze_with_llm(resume_text, criteria, current_model)
+                    response_text = self._analyze_with_llm(resume_text, analysis_prompt, current_model)
                     
-                    # Extract and validate JSON
-                    json_text = extract_json_from_text(response_text)
-                    is_valid, fixed_data, error_msg = validate_and_fix_iterative(
-                        json_text,
-                        self.schema,
-                        max_attempts=3
-                    )
+                    # Extract and validate JSON (local auto-fix pass)
+                    extracted = extract_json_from_text(response_text)
+                    if extracted is None:
+                        errors = ["root: Could not extract valid JSON from LLM response"]
+                        repair_template = load_repair_prompt(self.scholarship_folder, "resume")
+                        if repair_template:
+                            repaired = llm_repair_json(
+                                repair_template=repair_template,
+                                invalid_json={"raw_response": response_text},
+                                validation_errors=errors,
+                                model=current_model,
+                                system_prompt=SYSTEM_PROMPT,
+                                max_tokens=3000,
+                            )
+                            if repaired is not None:
+                                is_valid, fixed_data, errors = validate_and_repair_once(
+                                    data=repaired,
+                                    schema=self.schema,
+                                    repair_template=None,  # already a repair attempt
+                                    model=current_model,
+                                    system_prompt=SYSTEM_PROMPT,
+                                    local_fix_attempts=3,
+                                    repair_max_tokens=3000,
+                                )
+                            else:
+                                is_valid = False
+                                fixed_data = {}
+                        else:
+                            is_valid = False
+                            fixed_data = {}
+                    else:
+                        repair_template = load_repair_prompt(self.scholarship_folder, "resume")
+                        is_valid, fixed_data, errors = validate_and_repair_once(
+                            data=extracted,
+                            schema=self.schema,
+                            repair_template=repair_template,
+                            model=current_model,
+                            system_prompt=SYSTEM_PROMPT,
+                            local_fix_attempts=3,
+                            repair_max_tokens=3000,
+                        )
                     
                     if is_valid and fixed_data:
                         #logger.info(f"  ✓ Validation successful")
                         break
                     else:
-                        logger.warning(f"  Validation failed: {error_msg}")
+                        logger.warning(f"  Validation failed: {errors}")
+
                         if attempt == max_retries:
-                            logger.error(f"  Max retries reached, using default values")
+                            logger.error("  Max retries reached; unable to produce valid schema output")
                             return None
                         
                 except Exception:
@@ -380,13 +380,15 @@ class AcademicAgent:
                 score_breakdown=fixed_data.get("score_breakdown", {}),
                 source_file=resume_file.name,
                 model_used=current_model,
-                criteria_used=criteria_path,
+                criteria_used=(load_agent_config(self.scholarship_folder, "resume") or {}).get(
+                    "analysis_prompt", "prompts/resume_analysis.txt"
+                ),
             )
             
             # Save to JSON
             output_path = get_resume_output_path(
                 Path("outputs"),
-                scholarship_name,
+                self.scholarship_name,
                 wai_number
             )
             self._save_json(academic_data, output_path)
@@ -400,14 +402,14 @@ class AcademicAgent:
     def _analyze_with_llm(
         self,
         resume_text: str,
-        criteria: str,
+        analysis_prompt: str,
         model: str
     ) -> str:
         """Call LLM to analyze resume.
         
         Args:
             resume_text: Content of the resume/CV.
-            criteria: Evaluation criteria.
+            analysis_prompt: Analysis prompt from agents.json config.
             model: LLM model to use.
         
         Returns:
@@ -416,8 +418,8 @@ class AcademicAgent:
         Raises:
             Exception: If LLM call fails.
         """
-        # Build prompt
-        prompt = build_analysis_prompt(resume_text, criteria)
+        # Build prompt using the analysis prompt from config
+        prompt = build_analysis_prompt(resume_text, analysis_prompt)
         
         # Call LLM
         response = completion(

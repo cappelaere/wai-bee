@@ -10,69 +10,22 @@ License: MIT
 
 import json
 import logging
-import re
 from typing import Optional
 from pathlib import Path
 
 from litellm import completion
 
 from models.application_data import ApplicationData
-from models.application_score import ApplicationAnalysis
-from .prompts import (
-    SYSTEM_PROMPT,
-    get_extraction_prompt,
-    SCORING_SYSTEM_PROMPT,
-    get_scoring_prompt
-)
+from utils.prompt_loader import load_analysis_prompt, load_repair_prompt, load_schema_path
+from utils.schema_validator import load_schema, extract_json_from_text
+from utils.llm_repair import validate_and_repair_once
+from .prompts import SYSTEM_PROMPT, get_extraction_prompt
 
 logger = logging.getLogger(__name__)
 
 
 class LLMService:
     """Service for LLM-based extraction and scoring operations."""
-    
-    @staticmethod
-    def extract_json_from_response(response_text: str) -> Optional[dict]:
-        """Extract JSON object from LLM response text.
-        
-        Attempts to parse the response as JSON. If that fails, removes markdown
-        code fences and tries again, then uses regex to find JSON objects.
-        
-        Args:
-            response_text: Response text from the LLM.
-        
-        Returns:
-            Parsed JSON dictionary if found, None otherwise.
-        """
-        # Try to parse the entire response as JSON
-        try:
-            return json.loads(response_text)
-        except json.JSONDecodeError:
-            pass
-        
-        # Remove markdown code fences if present
-        cleaned_text = response_text.strip()
-        if cleaned_text.startswith('```'):
-            # Remove opening fence (```json or ```)
-            cleaned_text = re.sub(r'^```(?:json)?\s*\n?', '', cleaned_text)
-            # Remove closing fence
-            cleaned_text = re.sub(r'\n?```\s*$', '', cleaned_text)
-            
-            try:
-                return json.loads(cleaned_text)
-            except json.JSONDecodeError:
-                pass
-        
-        # Try to find JSON object in the response using regex
-        json_match = re.search(r'\{.*\}', cleaned_text, re.DOTALL)
-        if json_match:
-            try:
-                return json.loads(json_match.group())
-            except json.JSONDecodeError:
-                pass
-        
-        logger.error(f"Could not extract JSON from response: {response_text[:200]}")
-        return None
     
     @staticmethod
     def has_unknown_fields(data: ApplicationData) -> bool:
@@ -127,7 +80,7 @@ class LLMService:
             response_text = response.choices[0].message.content or ""
             
             # Try to extract JSON from response
-            json_data = LLMService.extract_json_from_response(str(response_text))
+            json_data = extract_json_from_text(str(response_text))
             
             if not json_data:
                 logger.error("Failed to extract JSON from LLM response")
@@ -241,29 +194,31 @@ class LLMService:
         output_dir: Path,
         model: str,
         max_retries: int
-    ) -> Optional[ApplicationAnalysis]:
-        """Score an application for completeness and validity.
+    ) -> Optional[dict]:
+        """Score an application using the generated facet-based prompt/schema.
         
         Args:
             app_data: Extracted application data.
-            scholarship_folder: Path to scholarship folder.
+            scholarship_folder: Path to scholarship folder (contains agents.json).
             wai_number: WAI application number.
             output_dir: Base output directory.
             model: LLM model to use for scoring.
             max_retries: Maximum retry attempts.
         
         Returns:
-            ApplicationAnalysis if successful, None otherwise.
+            Dict matching schemas_generated/application_analysis.schema.json, or None.
         """
         try:
-            # Load criteria
-            criteria_path = scholarship_folder / "criteria" / "application_criteria.txt"
-            if not criteria_path.exists():
-                logger.warning(f"Application criteria not found: {criteria_path}")
+            analysis_prompt = load_analysis_prompt(scholarship_folder, "application")
+            if not analysis_prompt:
+                logger.error("No analysis prompt found for application agent")
                 return None
-            
-            with open(criteria_path, 'r', encoding='utf-8') as f:
-                criteria = f.read()
+
+            schema_path = load_schema_path(scholarship_folder, "application")
+            if not schema_path or not schema_path.exists():
+                logger.error(f"Application schema not found: {schema_path}")
+                return None
+            schema = load_schema(schema_path)
             
             # Get list of attachment files from the application data
             # The attachment_files_checked field contains the actual file information
@@ -275,15 +230,20 @@ class LLMService:
                     if f.get('valid', False)
                 ]
             
-            # Generate scoring prompt
-            user_prompt = get_scoring_prompt(
-                name=app_data.name,
-                city=app_data.city,
-                state=app_data.state or "N/A",
-                country=app_data.country,
-                attachment_files=attachment_files,
-                criteria=criteria
+            state_display = app_data.state if app_data.state else "N/A (non-US applicant)"
+            attachment_list = "\n".join(f"- {f}" for f in attachment_files) if attachment_files else "- None"
+            artifact_context = (
+                "APPLICATION DATA (extracted):\n"
+                f"- name: {app_data.name}\n"
+                f"- city: {app_data.city}\n"
+                f"- state: {state_display}\n"
+                f"- country: {app_data.country}\n"
+                "\n"
+                "ATTACHMENT FILES FOUND:\n"
+                f"{attachment_list}\n"
             )
+
+            user_prompt = f"{analysis_prompt}\n\n---\n\n## Application Content\n\n{artifact_context}"
             
             # Call LLM with retry logic
             for attempt in range(1, max_retries + 1):
@@ -294,7 +254,6 @@ class LLMService:
                     response = completion(
                         model=model,
                         messages=[
-                            {"role": "system", "content": SCORING_SYSTEM_PROMPT},
                             {"role": "user", "content": user_prompt}
                         ],
                         temperature=0.1
@@ -302,40 +261,25 @@ class LLMService:
                     
                     response_text = response.choices[0].message.content or ""
                     
-                    # Extract JSON from response
-                    score_data = LLMService.extract_json_from_response(response_text)
-                    if not score_data:
+                    extracted = extract_json_from_text(response_text)
+                    if extracted is None:
                         logger.warning(f"Failed to extract JSON from scoring response (attempt {attempt})")
                         continue
-                    
-                    # Calculate overall_score if missing
-                    scores = score_data.get('scores', {})
-                    
-                    # Calculate from component scores
-                    overall = (
-                        scores.get('completeness_score', 0) +
-                        scores.get('validity_score', 0) +
-                        scores.get('attachment_score', 0)
+
+                    repair_template = load_repair_prompt(scholarship_folder, "application")
+                    is_valid, fixed_data, errors = validate_and_repair_once(
+                        data=extracted,
+                        schema=schema,
+                        repair_template=repair_template,
+                        model=model,
+                        system_prompt=None,
+                        local_fix_attempts=3,
+                        repair_max_tokens=3000,
                     )
-                    scores['overall_score'] = int(overall)
-                    logger.debug(f"Calculated application overall_score: {scores['overall_score'] }")
-                    
-                    # Create ApplicationAnalysis object
-                    analysis = ApplicationAnalysis(
-                        wai_number=wai_number,
-                        summary=score_data.get('summary', ''),
-                        scores=scores,
-                        score_breakdown=score_data.get('score_breakdown', {}),
-                        completeness_issues=score_data.get('completeness_issues', []),
-                        validity_issues=score_data.get('validity_issues', []),
-                        attachment_status=score_data.get('attachment_status', ''),
-                        source_file=app_data.source_file,
-                        model_used=model,
-                        criteria_used=str(criteria_path)
-                    )
-                    
-                    logger.info(f"Application scored: {analysis.scores.overall_score}/100")
-                    return analysis
+                    if is_valid:
+                        return fixed_data
+
+                    logger.warning(f"Schema validation failed: {len(errors)} errors")
                     
                 except Exception:
                     logger.exception(f"Scoring attempt {attempt} failed for WAI {wai_number}")

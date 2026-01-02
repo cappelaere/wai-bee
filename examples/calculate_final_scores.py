@@ -45,10 +45,10 @@ def main():
     logger.info("="*60)
     
     # Configuration
-    scholarship_folder = Path("data/Delaney_Wings")
-    outputs_dir = Path("outputs")
-    scholarship_name = "Delaney_Wings"
-    
+    scholarship_name = "Evans_Wings"
+    scholarship_folder = Path(f"data/{scholarship_name}")
+    outputs_dir = Path(f"outputs/{scholarship_name}")
+   
     # Test with WAI 77747
     wai_number = "77747"
     

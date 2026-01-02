@@ -53,7 +53,7 @@ from .file_service import FileService
 
 logger = logging.getLogger()
 
-logger.info(f"MARKDOWN_PARSER: {MARKDOWN_PARSER}")
+
 class ApplicationAgent:
     """Agent for processing scholarship applications.
     
@@ -69,34 +69,34 @@ class ApplicationAgent:
         6. Tracks timing and performance metrics
     
     Attributes:
-        None (stateless agent)
+        scholarship_folder: Path to scholarship data folder.
+        scholarship_name: Name of the scholarship.
     
     Example:
-        >>> agent = ApplicationAgent()
-        >>> result = agent.process_applications(
-        ...     scholarship_folder="data/Delaney_Wings/Applications",
-        ...     model="ollama/llama3.2:1b"
-        ... )
-        >>> print(f"Success rate: {result.successful}/{result.total}")
+        >>> agent = ApplicationAgent(Path("data/WAI-Harvard-June-2026"))
+        >>> result = agent.analyze_application(wai_number="WAI-12345")
+        >>> print(f"Extracted: {result.name}")
     """
     
-    def __init__(self):
-        """Initialize the Application Agent.
+    def __init__(self, scholarship_folder: Path):
+        """Initialize the Application Agent with scholarship configuration.
         
-        Creates a new instance of the ApplicationAgent and initializes the
-        DocumentConverter for efficient reuse across multiple documents.
+        Args:
+            scholarship_folder: Path to scholarship data folder containing agents.json.
         """
+        self.scholarship_folder = scholarship_folder
+        self.scholarship_name = scholarship_folder.name
+        
         # Initialize the document converter once for reuse
         if MARKDOWN_PARSER:
             self.md_converter = get_markitdown_converter()
         else:
             self.converter = get_converter()
-        logger.info("Application Agent initialized with DocumentConverter")
+        logger.info(f"Application Agent initialized for {self.scholarship_name}")
     
     def analyze_application(
         self,
         wai_number: str,
-        scholarship_folder: Optional[str] = None,
         output_dir: str = "outputs",
         model: Optional[str] = None,
         fallback_model: Optional[str] = None,
@@ -106,7 +106,6 @@ class ApplicationAgent:
         
         Args:
             wai_number: WAI application number.
-            scholarship_folder: Path to scholarship folder. If None, uses default pattern.
             output_dir: Base output directory.
             model: Primary LLM model to use. If None, uses PRIMARY_MODEL from .env.
             fallback_model: Fallback model if primary fails. If None, uses FALLBACK_MODEL from .env.
@@ -115,8 +114,6 @@ class ApplicationAgent:
         Returns:
             ApplicationData if successful, None otherwise.
         """
-        from pathlib import Path
-        
         # Load defaults from environment variables if not provided
         if model is None:
             model = os.getenv('PRIMARY_MODEL', 'ollama/llama3.2:3b')
@@ -125,34 +122,14 @@ class ApplicationAgent:
         if max_retries is None:
             max_retries = int(os.getenv('MAX_RETRIES', '3'))
         
-        # Determine scholarship folder if not provided
-        if scholarship_folder is None:
-            # Try to find the WAI folder in common locations
-            for base in ["data/Delaney_Wings/Applications", "data/Evans_Wings/Applications"]:
-                wai_folder = Path(base) / wai_number
-                if wai_folder.exists():
-                    scholarship_folder = base
-                    break
-        
-        if scholarship_folder is None:
-            logger.error(f"Could not find WAI folder for {wai_number}")
-            return None
-        
-        # Handle both direct scholarship folder and Applications subfolder
-        scholarship_path = Path(scholarship_folder)
-        if scholarship_path.name != "Applications":
-            # If given scholarship folder (e.g., data/Delaney_Wings), append Applications
-            wai_folder = scholarship_path / "Applications" / wai_number
-        else:
-            # If given Applications folder directly
-            wai_folder = scholarship_path / wai_number
+        # Find WAI folder in Applications subfolder
+        wai_folder = self.scholarship_folder / "Applications" / wai_number
             
         if not wai_folder.exists():
             logger.error(f"WAI folder does not exist: {wai_folder}")
             return None
         
         # Use a dummy result object to track success/failure
-        from models.application_data import ProcessingResult
         result = ProcessingResult(total=1, successful=0, failed=0)
         
         # Process the single application
@@ -165,8 +142,7 @@ class ApplicationAgent:
             model=model,
             fallback_model=fallback_model,
             max_retries=max_retries,
-            result=result,
-            scholarship_folder=scholarship_path
+            result=result
         )
         
         if result.successful > 0:
@@ -179,9 +155,9 @@ class ApplicationAgent:
         
         return None
     
-    def process_applications(
+    def process_batch(
         self,
-        scholarship_folder: str,
+        wai_numbers: Optional[list[str]] = None,
         max_applications: Optional[int] = None,
         skip_processed: Optional[bool] = None,
         overwrite: Optional[bool] = None,
@@ -190,53 +166,21 @@ class ApplicationAgent:
         fallback_model: Optional[str] = None,
         max_retries: Optional[int] = None
     ) -> ProcessingResult:
-        """Process scholarship applications in a folder.
-        
-        Scans the specified scholarship folder for WAI number subfolders,
-        processes each application file, extracts information using LLM,
-        and saves results as JSON files.
+        """Process multiple scholarship applications.
         
         Args:
-            scholarship_folder (str): Path to the scholarship applications folder.
-                Example: "data/Delaney_Wings/Applications"
-            max_applications (Optional[int]): Maximum number of applications to
-                process. If None, processes all applications. Defaults to None.
-            skip_processed (bool): If True, skips applications that already have
-                JSON output files. Defaults to True.
-            overwrite (bool): If True, overwrites existing JSON files. Defaults
-                to False.
-            output_dir (str): Base output directory for JSON files. Defaults to
-                "outputs".
-            model (str): LLM model to use for extraction. Format for Ollama:
-                "ollama/{model_name}". Defaults to "ollama/llama3.2:1b".
-                Examples: "ollama/llama3.2:3b", "gpt-4o-mini"
-            fallback_model (Optional[str]): Fallback model to use if primary model
-                fails after retries. If None, no fallback is used. Defaults to None.
-                Example: "ollama/llama3:latest"
-            max_retries (int): Maximum number of retry attempts for extraction.
-                Defaults to 3.
+            wai_numbers: Optional list of WAI numbers to process. If None, 
+                scans the Applications folder for all WAI folders.
+            max_applications: Maximum number of applications to process.
+            skip_processed: If True, skips already processed applications.
+            overwrite: If True, overwrites existing JSON files.
+            output_dir: Base output directory for JSON files.
+            model: LLM model to use for extraction.
+            fallback_model: Fallback model if primary fails.
+            max_retries: Maximum retry attempts.
         
         Returns:
-            ProcessingResult: Object containing processing statistics including:
-                - total: Total applications attempted
-                - successful: Successfully processed count
-                - failed: Failed count
-                - errors: List of error details
-                - total_duration: Total processing time in seconds
-                - avg_duration_per_app: Average time per application
-        
-        Raises:
-            FileNotFoundError: If scholarship_folder doesn't exist.
-            Exception: For unexpected errors during processing.
-        
-        Example:
-            >>> agent = ApplicationAgent()
-            >>> result = agent.process_applications(
-            ...     scholarship_folder="data/Delaney_Wings/Applications",
-            ...     max_applications=5,
-            ...     model="ollama/llama3.2:1b"
-            ... )
-            >>> print(f"Processed {result.successful} applications")
+            ProcessingResult with statistics.
         """
         # Load defaults from environment variables if not provided
         if model is None:
@@ -250,7 +194,10 @@ class ApplicationAgent:
         if overwrite is None:
             overwrite = os.getenv('OVERWRITE_EXISTING', 'false').lower() == 'true'
         
-        logger.info(f"Starting to process applications in: {scholarship_folder}")
+        logger.info("="*60)
+        logger.info("Starting Application Agent Batch")
+        logger.info("="*60)
+        logger.info(f"Scholarship: {self.scholarship_name}")
         logger.info(f"Model: {model}")
         if fallback_model:
             logger.info(f"Fallback model: {fallback_model}")
@@ -263,8 +210,12 @@ class ApplicationAgent:
         result.start_time = time.time()
         
         try:
-            # Scan for WAI folders
-            wai_folders = scan_scholarship_folder(scholarship_folder, max_applications)
+            # Get WAI folders
+            applications_folder = self.scholarship_folder / "Applications"
+            if wai_numbers:
+                wai_folders = [applications_folder / wai for wai in wai_numbers if (applications_folder / wai).exists()]
+            else:
+                wai_folders = scan_scholarship_folder(str(applications_folder), max_applications)
             result.total = len(wai_folders)
             
             if result.total == 0:
@@ -297,20 +248,17 @@ class ApplicationAgent:
             result.end_time = time.time()
             result.calculate_timing()
             
-            logger.info(f"\n{'='*60}")
-            logger.info(f"Processing complete!")
-            logger.info(f"Total: {result.total}")
-            logger.info(f"Successful: {result.successful}")
-            logger.info(f"Failed: {result.failed}")
+            logger.info("\n" + "="*60)
+            logger.info("Processing complete!")
+            logger.info(f"Total: {result.total}, Successful: {result.successful}, Failed: {result.failed}")
             if result.total_duration:
-                logger.info(f"Total duration: {result.total_duration:.2f} seconds")
-                logger.info(f"Average per application: {result.avg_duration_per_app:.2f} seconds")
-            logger.info(f"{'='*60}")
+                logger.info(f"Duration: {result.total_duration:.2f}s, Average: {result.avg_duration_per_app:.2f}s per application")
+            logger.info("="*60)
             
             return result
             
         except Exception as e:
-            logger.error(f"Error in process_applications: {str(e)}")
+            logger.error(f"Error in process_batch: {str(e)}")
             raise
     
     def _process_single_application(
@@ -323,8 +271,7 @@ class ApplicationAgent:
         model: str,
         fallback_model: Optional[str],
         max_retries: int,
-        result: ProcessingResult,
-        scholarship_folder: Optional[Path] = None
+        result: ProcessingResult
     ):
         """Process a single scholarship application.
         
@@ -429,10 +376,6 @@ class ApplicationAgent:
         logger.info("Scoring application completeness and validity...")
         output_dir_path = Path(output_dir)
         
-        # Use the scholarship_folder parameter if provided, otherwise derive it
-        if scholarship_folder is None:
-            scholarship_folder = Path(wai_folder).parent.parent
-        
         # Use a larger model for scoring if the extraction model is too small
         scoring_model = model
         if "1b" in model.lower():
@@ -441,7 +384,7 @@ class ApplicationAgent:
         
         analysis = LLMService.score_application(
             app_data=extracted_data,
-            scholarship_folder=scholarship_folder,
+            scholarship_folder=self.scholarship_folder,
             wai_number=wai_number,
             output_dir=output_dir_path,
             model=scoring_model,

@@ -34,17 +34,6 @@
       "enabled": true,
       "reviewer": true,
       "initials": "EGM"
-    },
-    "user": {
-      "password_env": "USER_PASSWORD",
-      "role": "reviewer",
-      "scholarships": ["Delaney_Wings"],
-      "permissions": ["read"],
-      "email": "user@example.com",
-      "full_name": "General User (Backward Compatibility)",
-      "enabled": true,
-      "reviewer": true,
-      "initials": "GU"
     }
   },
   "scholarships": {
@@ -61,6 +50,13 @@
       "data_folder": "data/Evans_Wings",
       "enabled": true,
       "description": "Evans Wings Scholarship Program"
+    },
+    "WAI-Harvard-June-2026": {
+      "name": "WAI Harvard Emerging Leaders Scholarship",
+      "short_name": "WAI-Harvard",
+      "data_folder": "data/WAI-Harvard-June-2026",
+      "enabled": true,
+      "description": "WAI Harvard Emerging Leaders Scholarship 2026"
     }
   },
   "roles": {

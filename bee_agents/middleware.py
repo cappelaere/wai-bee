@@ -83,7 +83,7 @@ class ScholarshipAccessMiddleware:
         
         filtered = [s for s in scholarships if s in self.scholarships]
         
-        logger.debug(
+        logger.info(
             f"Filtered scholarships for {self.username}",
             extra={
                 "username": self.username,
@@ -124,6 +124,7 @@ class ScholarshipAccessMiddleware:
         if scholarship not in config["scholarships"]:
             raise ValueError(f"Unknown scholarship: {scholarship}")
         
+        logger.info(f"Middleware: Getting data folder for {scholarship}: {config['scholarships'][scholarship]['data_folder']}") 
         return config["scholarships"][scholarship]["data_folder"]
     
     def has_permission(self, permission: str) -> bool:
@@ -135,6 +136,7 @@ class ScholarshipAccessMiddleware:
         Returns:
             True if user has the permission, False otherwise
         """
+        logger.info(f"Middleware: Checking permission: {permission}")
         return permission in self.permissions
     
     def validate_path(self, scholarship: str, requested_path: str) -> bool:
@@ -158,16 +160,9 @@ class ScholarshipAccessMiddleware:
             is_valid = resolved_path.is_relative_to(scholarship_path)
             
             if not is_valid:
-                logger.warning(
-                    f"Path traversal attempt detected",
-                    extra={
-                        "username": self.username,
-                        "scholarship": scholarship,
-                        "requested_path": requested_path,
-                        "resolved_path": str(resolved_path)
-                    }
-                )
+                logger.warning(f"Path traversal attempt detected")
             
+            logger.info(f"Middleware: Path validation result: {is_valid}")
             return is_valid
             
         except Exception as e:
@@ -198,6 +193,7 @@ class ScholarshipAccessMiddleware:
             ]
         
         # Regular users see only their assigned scholarships
+        logger.info("Middleware: Getting accessible scholarships...")
         return [
             {
                 "id": key,
@@ -227,19 +223,19 @@ def log_access_attempt(
     """
     from datetime import datetime
     
-    log_data = {
-        "username": username,
-        "scholarship": scholarship,
-        "action": action,
-        "allowed": allowed,
-        "resource": resource,
-        "timestamp": datetime.now().isoformat()
-    }
+    # log_data = {
+    #     "username": username,
+    #     "scholarship": scholarship,
+    #     "action": action,
+    #     "allowed": allowed,
+    #     "resource": resource,
+    #     "timestamp": datetime.now().isoformat()
+    # }
     
     if allowed:
-        logger.info("Access granted", extra=log_data)
+        logger.info("MiddlewareAccess granted")
     else:
-        logger.warning("Access denied", extra=log_data)
+        logger.warning("Middleware Access denied")
 
 
 # Made with Bob

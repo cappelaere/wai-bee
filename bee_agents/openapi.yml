@@ -375,23 +375,20 @@ paths:
       tags:
       - Criteria
       summary: List Criteria
-      description: "List all available evaluation criteria files for a scholarship.\n\
-        \nReturns a list of all criteria files available for the specified scholarship,\n\
-        including their names, filenames, and fully qualified download URLs. This\
-        \ endpoint\nis useful for discovering what criteria types are available before\
-        \ requesting\nspecific criteria content.\n\n**Example Request:**\n```\nGET\
-        \ /criteria?scholarship=Delaney_Wings\n```\n\n**Example Response:**\n```json\n\
-        {\n  \"scholarship\": \"Delaney_Wings\",\n  \"criteria_count\": 5,\n  \"criteria\"\
-        : [\n    {\n      \"name\": \"academic_criteria\",\n      \"filename\": \"\
-        academic_criteria.txt\",\n      \"url\": \"http://localhost:8200/criteria/Delaney_Wings/academic_criteria.txt\"\
-        \n    },\n    {\n      \"name\": \"application_criteria\",\n      \"filename\"\
-        : \"application_criteria.txt\",\n      \"url\": \"http://localhost:8200/criteria/Delaney_Wings/application_criteria.txt\"\
+      description: "List all available evaluation prompts for a scholarship.\n\nReturns\
+        \ a list of all prompt files available for the specified scholarship,\nincluding\
+        \ their names, filenames, and fully qualified download URLs.\n\n**Example\
+        \ Request:**\n```\nGET /criteria?scholarship=Delaney_Wings\n```\n\n**Example\
+        \ Response:**\n```json\n{\n  \"scholarship\": \"Delaney_Wings\",\n  \"criteria_count\"\
+        : 4,\n  \"criteria\": [\n    {\n      \"name\": \"application_analysis\",\n\
+        \      \"filename\": \"application_analysis.txt\",\n      \"type\": \"analysis\"\
+        ,\n      \"agent\": \"application\",\n      \"url\": \"http://localhost:8200/criteria/file?scholarship=Delaney_Wings&filename=application_analysis.txt\"\
         \n    }\n  ]\n}\n```\n\nArgs:\n    scholarship: Name of the scholarship (e.g.,\
         \ 'Delaney_Wings' or 'Evans_Wings')\n    \nReturns:\n    Dictionary containing:\n\
         \    - scholarship: Name of the scholarship\n    - criteria_count: Number\
-        \ of criteria files found\n    - criteria: List of criteria objects with name,\
+        \ of prompt files found\n    - criteria: List of prompt objects with name,\
         \ filename, and download URL\n    \nRaises:\n    HTTPException 404: If scholarship\
-        \ not found or no criteria directory exists"
+        \ not found or no prompts directory exists"
       operationId: list_criteria
       parameters:
       - name: scholarship
@@ -420,35 +417,26 @@ paths:
       tags:
       - Criteria
       summary: Get Criteria By Type
-      description: "Get full evaluation criteria text for a specific criteria type.\n\
-        \    \n    Retrieves the complete evaluation criteria text for a given criteria\
-        \ type.\n    The endpoint automatically maps criteria types to their corresponding\
-        \ filenames:\n    - `academic` \u2192 `academic_criteria.txt`\n    - `application`\
-        \ \u2192 `application_criteria.txt`\n    - `essay` \u2192 `essay_criteria.txt`\n\
-        \    - `recommendation` \u2192 `recommendation_criteria.txt`\n    - `social`\
-        \ \u2192 `social_criteria.txt`\n    \n    **Example Request:**\n    ```\n\
-        \    GET /criteria/by-type?criteria_type=academic&scholarship=Delaney_Wings\n\
+      description: "Get full evaluation prompt text for a specific agent type.\n \
+        \   \n    Retrieves the complete analysis prompt for a given agent type.\n\
+        \    The endpoint maps agent types to their corresponding prompt files:\n\
+        \    - `application` \u2192 `application_analysis.txt`\n    - `resume` \u2192\
+        \ `resume_analysis.txt`\n    - `essay` \u2192 `essay_analysis.txt`\n    -\
+        \ `recommendation` \u2192 `recommendation_analysis.txt`\n    \n    **Example\
+        \ Request:**\n    ```\n    GET /criteria/by-type?criteria_type=essay&scholarship=Delaney_Wings\n\
         \    ```\n    \n    **Example Response:**\n    ```json\n    {\n      \"scholarship\"\
-        : \"Delaney_Wings\",\n      \"criteria_type\": \"academic\",\n      \"filename\"\
-        : \"academic_criteria.txt\",\n      \"content\": \"# Academic Profile Evaluation\
-        \ Criteria\n\nThis file contains...\",\n      \"line_count\": 72\n    }\n\
-        \    ```\n    \n    **Valid Criteria Types:**\n    - `application`: Criteria\
-        \ for evaluating application completeness and validity\n    - `academic`:\
-        \ Criteria for evaluating academic performance and readiness\n    - `essay`:\
-        \ Criteria for evaluating essay quality and content\n    - `recommendation`:\
-        \ Criteria for evaluating letters of recommendation\n    - `social`: Criteria\
-        \ for evaluating social impact and community involvement\n    \n    Args:\n\
-        \        criteria_type: Type of criteria. Must be one of: application, academic,\
-        \ essay, recommendation, social\n        scholarship: Name of the scholarship\
-        \ (e.g., 'Delaney_Wings' or 'Evans_Wings')\n        \n    Returns:\n     \
-        \   Dictionary containing:\n        - scholarship: Name of the scholarship\n\
-        \        - criteria_type: The criteria type requested\n        - filename:\
-        \ The actual filename (e.g., \"academic_criteria.txt\")\n        - content:\
-        \ Full text content of the criteria file\n        - line_count: Number of\
-        \ lines in the criteria file\n        \n    Raises:\n        HTTPException\
-        \ 400: If criteria_type is invalid or missing\n        HTTPException 404:\
-        \ If scholarship not found or criteria file doesn't exist\n        HTTPException\
-        \ 500: If file cannot be read"
+        : \"Delaney_Wings\",\n      \"criteria_type\": \"essay\",\n      \"filename\"\
+        : \"essay_analysis.txt\",\n      \"content\": \"# Essay Analysis Evaluation\
+        \ Criteria\n\n...\",\n      \"line_count\": 57\n    }\n    ```\n    \n   \
+        \ Args:\n        criteria_type: Agent type (application, resume, essay, recommendation)\n\
+        \        scholarship: Name of the scholarship (e.g., 'Delaney_Wings' or 'Evans_Wings')\n\
+        \        \n    Returns:\n        Dictionary containing:\n        - scholarship:\
+        \ Name of the scholarship\n        - criteria_type: The agent type requested\n\
+        \        - filename: The actual filename\n        - content: Full text content\
+        \ of the prompt file\n        - line_count: Number of lines in the prompt\
+        \ file\n        \n    Raises:\n        HTTPException 400: If criteria_type\
+        \ is invalid\n        HTTPException 404: If scholarship not found or prompt\
+        \ file doesn't exist"
       operationId: get_criteria_by_type
       parameters:
       - name: criteria_type
@@ -456,12 +444,12 @@ paths:
         required: true
         schema:
           type: string
-          description: 'Type of evaluation criteria. Must be one of: application,
-            academic, essay, recommendation, social'
+          description: 'Type of evaluation criteria (agent name). E.g.: application,
+            resume, essay, recommendation'
           title: Criteria Type
-        description: 'Type of evaluation criteria. Must be one of: application, academic,
-          essay, recommendation, social'
-        example: academic
+        description: 'Type of evaluation criteria (agent name). E.g.: application,
+          resume, essay, recommendation'
+        example: essay
       - name: scholarship
         in: query
         required: true
@@ -488,21 +476,12 @@ paths:
       tags:
       - Criteria
       summary: Get Criteria File
-      description: "Download a specific criteria file by filename.\n\nDownloads a\
-        \ criteria file directly as plain text. This endpoint requires the\nexact\
-        \ filename (e.g., \"academic_criteria.txt\") rather than just the criteria\
-        \ type.\nUse this endpoint when you already know the exact filename, or use\n\
-        `/criteria/by-type` for type-based access.\n\n**Example Request:**\n```\n\
-        GET /criteria/file?scholarship=Delaney_Wings&filename=academic_criteria.txt\n\
-        ```\n\n**Security:**\n- Filenames are validated to prevent path traversal\
-        \ attacks\n- Only `.txt` files are allowed\n- Filenames containing `/` or\
-        \ `\\` are rejected\n\nArgs:\n    scholarship: Name of the scholarship (e.g.,\
-        \ 'Delaney_Wings' or 'Evans_Wings')\n    filename: Exact filename of the criteria\
-        \ file (must end with .txt, e.g., \"academic_criteria.txt\")\n    \nReturns:\n\
-        \    FileResponse: Plain text file with content-type \"text/plain\"\n    \n\
-        Raises:\n    HTTPException 400: If filename is invalid (doesn't end with .txt\
-        \ or contains path separators)\n    HTTPException 404: If scholarship not\
-        \ found or criteria file doesn't exist"
+      description: "Download a specific prompt file by filename.\n\nDownloads a prompt\
+        \ file directly as plain text.\n\n**Example Request:**\n```\nGET /criteria/file?scholarship=Delaney_Wings&filename=essay_analysis.txt\n\
+        ```\n\nArgs:\n    scholarship: Name of the scholarship\n    filename: Exact\
+        \ filename of the prompt file (must end with .txt)\n    \nReturns:\n    FileResponse:\
+        \ Plain text file\n    \nRaises:\n    HTTPException 400: If filename is invalid\n\
+        \    HTTPException 404: If scholarship not found or prompt file doesn't exist"
       operationId: get_criteria_file
       parameters:
       - name: scholarship
@@ -519,10 +498,98 @@ paths:
         required: true
         schema:
           type: string
-          description: Name of the criteria file (must end with .txt, e.g., 'academic_criteria.txt')
+          description: Name of the prompt file (must end with .txt)
           title: Filename
-        description: Name of the criteria file (must end with .txt, e.g., 'academic_criteria.txt')
-        example: academic_criteria.txt
+        description: Name of the prompt file (must end with .txt)
+        example: essay_analysis.txt
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /admin/scholarship:
+    get:
+      tags:
+      - Admin
+      summary: Get Scholarship Config
+      description: 'Get scholarship.json configuration (read-only).
+
+
+        Returns the generated scholarship configuration including:
+
+        - Scholarship metadata
+
+        - Eligibility requirements
+
+        - Submission requirements
+
+        - Scoring configuration
+
+        - Aggregation weights
+
+
+        Note: To modify configuration, edit config.yml and run generate_artifacts.py'
+      operationId: get_scholarship_config
+      parameters:
+      - name: scholarship
+        in: query
+        required: true
+        schema:
+          type: string
+          description: Scholarship name
+          title: Scholarship
+        description: Scholarship name
+        example: Delaney_Wings
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /admin/agents:
+    get:
+      tags:
+      - Admin
+      summary: Get Agents Config
+      description: 'Get agents.json configuration (read-only).
+
+
+        Returns the generated agent configuration including:
+
+        - All agent definitions
+
+        - Scoring weights
+
+        - Input file mappings
+
+        - Schema and prompt paths
+
+
+        Note: To modify configuration, edit config.yml and run generate_artifacts.py'
+      operationId: get_agents_config
+      parameters:
+      - name: scholarship
+        in: query
+        required: true
+        schema:
+          type: string
+          description: Scholarship name
+          title: Scholarship
+        description: Scholarship name
+        example: Delaney_Wings
       responses:
         '200':
           description: Successful Response
@@ -540,7 +607,13 @@ paths:
       tags:
       - Admin
       summary: Get Scholarship Weights
-      description: Get current scoring weights for a scholarship from canonical config.
+      description: 'Get current scoring weights for a scholarship (read-only).
+
+
+        Returns weights extracted from agents.json.
+
+
+        Note: To modify weights, edit config.yml and run generate_artifacts.py'
       operationId: get_weights
       parameters:
       - name: scholarship
@@ -548,9 +621,9 @@ paths:
         required: true
         schema:
           type: string
-          description: Scholarship name (e.g., 'Delaney_Wings' or 'Evans_Wings')
+          description: Scholarship name
           title: Scholarship
-        description: Scholarship name (e.g., 'Delaney_Wings' or 'Evans_Wings')
+        description: Scholarship name
         example: Delaney_Wings
       responses:
         '200':
@@ -564,68 +637,37 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
-    put:
-      tags:
-      - Admin
-      summary: Update Scholarship Weights
-      description: Update scoring weights in canonical config and regenerate artifacts.
-      operationId: update_weights
-      parameters:
-      - name: scholarship
-        in: query
-        required: true
-        schema:
-          type: string
-          description: Scholarship name (e.g., 'Delaney_Wings' or 'Evans_Wings')
-          title: Scholarship
-        description: Scholarship name (e.g., 'Delaney_Wings' or 'Evans_Wings')
-        example: Delaney_Wings
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              additionalProperties: true
-              title: Payload
-      responses:
-        '200':
-          description: Successful Response
-          content:
-            application/json:
-              schema: {}
-        '422':
-          description: Validation Error
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/HTTPValidationError'
-  /admin/criteria:
+  /admin/prompts/{agent_name}:
     get:
       tags:
       - Admin
-      summary: Get Agent Criteria
-      description: Get current criteria text for an agent.
-      operationId: get_criteria
+      summary: Get Agent Prompts
+      description: 'Get analysis and repair prompts for an agent (read-only).
+
+
+        Returns both the analysis prompt and repair prompt texts.
+
+
+        Note: Prompts are generated from config.yml facets. To modify,
+
+        edit config.yml and run generate_artifacts.py'
+      operationId: get_agent_prompts
       parameters:
+      - name: agent_name
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Agent Name
       - name: scholarship
         in: query
         required: true
         schema:
           type: string
-          description: Scholarship name (e.g., 'Delaney_Wings' or 'Evans_Wings')
+          description: Scholarship name
           title: Scholarship
-        description: Scholarship name (e.g., 'Delaney_Wings' or 'Evans_Wings')
+        description: Scholarship name
         example: Delaney_Wings
-      - name: agent_name
-        in: query
-        required: true
-        schema:
-          type: string
-          description: Name of the agent (e.g., 'academic', 'essay', 'recommendation')
-          title: Agent Name
-        description: Name of the agent (e.g., 'academic', 'essay', 'recommendation')
-        example: academic
       responses:
         '200':
           description: Successful Response
@@ -638,92 +680,37 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
-    put:
+  /admin/schema/{agent_name}:
+    get:
       tags:
       - Admin
-      summary: Update Agent Criteria
-      description: Update criteria text for an agent and regenerate artifacts.
-      operationId: update_criteria
+      summary: Get Agent Schema
+      description: 'Get output schema for an agent (read-only).
+
+
+        Returns the JSON schema used to validate agent output.
+
+
+        Note: Schemas are generated from config.yml facets. To modify,
+
+        edit config.yml and run generate_artifacts.py'
+      operationId: get_agent_schema
       parameters:
+      - name: agent_name
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Agent Name
       - name: scholarship
         in: query
         required: true
         schema:
           type: string
-          description: Scholarship name (e.g., 'Delaney_Wings' or 'Evans_Wings')
+          description: Scholarship name
           title: Scholarship
-        description: Scholarship name (e.g., 'Delaney_Wings' or 'Evans_Wings')
+        description: Scholarship name
         example: Delaney_Wings
-      - name: agent_name
-        in: query
-        required: true
-        schema:
-          type: string
-          description: Name of the agent (e.g., 'academic', 'essay', 'recommendation')
-          title: Agent Name
-        description: Name of the agent (e.g., 'academic', 'essay', 'recommendation')
-        example: academic
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              additionalProperties: true
-              title: Payload
-      responses:
-        '200':
-          description: Successful Response
-          content:
-            application/json:
-              schema: {}
-        '422':
-          description: Validation Error
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/HTTPValidationError'
-  /admin/criteria/regenerate:
-    post:
-      tags:
-      - Admin
-      summary: Regenerate Agent Criteria With Llm
-      description: 'Generate a new criteria draft for an agent using an LLM.
-
-
-        This endpoint does NOT persist changes automatically. It returns a
-
-        proposed `criteria_text` that an admin can review and then apply via
-
-        the standard PUT /admin/{scholarship}/criteria/{agent_name} endpoint.'
-      operationId: regen_criteria
-      parameters:
-      - name: scholarship
-        in: query
-        required: true
-        schema:
-          type: string
-          description: Scholarship name (e.g., 'Delaney_Wings' or 'Evans_Wings')
-          title: Scholarship
-        description: Scholarship name (e.g., 'Delaney_Wings' or 'Evans_Wings')
-        example: Delaney_Wings
-      - name: agent_name
-        in: query
-        required: true
-        schema:
-          type: string
-          description: Name of the agent (e.g., 'academic', 'essay', 'recommendation')
-          title: Agent Name
-        description: Name of the agent (e.g., 'academic', 'essay', 'recommendation')
-        example: academic
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              additionalProperties: true
-              title: Payload
       responses:
         '200':
           description: Successful Response
@@ -875,16 +862,16 @@ paths:
                 $ref: '#/components/schemas/HTTPValidationError'
       security:
       - bearerAuth: []
-  /reviews/final_csv:
+  /reviews/aggregate:
     post:
       tags:
       - Reviews
       - Reviews
       summary: Generate Final Reviews Csv Endpoint
-      description: "Generate a CSV summarizing all reviewer scores for a scholarship.\n\
-        \nThe CSV is written to:\n\n    outputs/{Scholarship}/reviews/final_reviews_summary.csv\n\
-        \nRows are sorted by `final_total_score` (average reviewer score) descending."
-      operationId: generate_final_reviews_csv
+      description: "Generate an aggregate summarizing all reviewer scores for a scholarship.\n\
+        \nA CSV is written to:\n\n    outputs/{Scholarship}/reviews/final_reviews_summary.csv\n\
+        \nRows are sorted by `total_score` (sum of all reviewer scores) descending."
+      operationId: generate_aggregate_reviews
       parameters:
       - name: scholarship
         in: query
@@ -916,6 +903,40 @@ paths:
           description: Bearer authentication token issued by chat auth service
           title: Authorization
         description: Bearer authentication token issued by chat auth service
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /reviews/final_csv_file:
+    get:
+      tags:
+      - Reviews
+      - Reviews
+      summary: Download Final Reviews Csv
+      description: 'Download the final reviews CSV file for a scholarship.
+
+
+        This endpoint returns the generated CSV as a file response so clients
+
+        can download it directly (e.g., from a browser or via curl).'
+      operationId: download_final_reviews_csv
+      parameters:
+      - name: scholarship
+        in: query
+        required: true
+        schema:
+          type: string
+          description: Scholarship identifier (e.g., 'Delaney_Wings')
+          title: Scholarship
+        description: Scholarship identifier (e.g., 'Delaney_Wings')
       responses:
         '200':
           description: Successful Response

@@ -35,7 +35,7 @@ python examples/process_applicants.py --help
 ```
 
 **Arguments:**
-- `scholarship` (optional): Scholarship to process. Choices: `Delaney_Wings` (default), `Evans_Wings`
+- `scholarship` (optional): Scholarship folder name (e.g., `Delaney_Wings`, `Evans_Wings`, `WAI-Harvard-June-2026`)
 - `--max-applicants` (optional): Maximum number of applicants to process (default: 20)
 
 **Output:**
@@ -80,41 +80,37 @@ The processing script is fully compatible with the multi-tenancy system:
 
 ## Adding New Scholarships
 
-To add support for a new scholarship:
+Adding a new scholarship is straightforward:
 
-1. **Add to configuration** (`utils/config.py`):
-   ```python
-   NEW_SCHOLARSHIP_FOLDER: Path = Path(os.getenv("NEW_SCHOLARSHIP_FOLDER", "data/New_Scholarship"))
-   ```
-
-2. **Update get_scholarship_folder method**:
-   ```python
-   @classmethod
-   def get_scholarship_folder(cls, scholarship_name: str) -> Optional[Path]:
-       if scholarship_name == "New_Scholarship":
-           return cls.NEW_SCHOLARSHIP_FOLDER
-       # ... existing code
-   ```
-
-3. **Update script choices**:
-   ```python
-   parser.add_argument(
-       'scholarship',
-       choices=['Delaney_Wings', 'Evans_Wings', 'New_Scholarship'],
-       # ...
-   )
-   ```
-
-4. **Create data folder**:
+1. **Create data folder with configuration**:
    ```bash
-   mkdir -p data/New_Scholarship/Applications
+   mkdir -p data/New_Scholarship
    ```
+
+2. **Create `config.yml`** with scholarship criteria (see `docs/SCHOLARSHIP_PROCESS.md`)
+
+3. **Generate artifacts**:
+   ```bash
+   python scripts/generate_all.py data/New_Scholarship
+   ```
+
+4. **Use it**:
+   ```python
+   from utils.config import Config as config
+   
+   # Dynamic folder resolution (no code changes needed)
+   scholarship_folder = config.get_scholarship_folder("New_Scholarship")
+   ```
+
+That's it! The system dynamically discovers scholarships by folder name.
 
 ## Requirements
 
 - Python 3.8+
 - All dependencies from `requirements.txt`
-- Scholarship data in `data/<scholarship>/Applications/`
+- Scholarship configuration: `data/<scholarship>/config.yml`
+- Generated artifacts: Run `python scripts/generate_all.py data/<scholarship>`
+- Application files in `data/<scholarship>/Applications/`
 - Valid `.env` configuration
 
 ## Troubleshooting
@@ -124,8 +120,8 @@ To add support for a new scholarship:
 - Check `.env` file for correct folder paths
 
 **Error: Unknown scholarship**
-- Use one of the available scholarships: `Delaney_Wings`, `Evans_Wings`
-- Check spelling and capitalization
+- Ensure the scholarship folder exists under `data/`
+- Check spelling and capitalization (must match folder name exactly)
 
 **No applicants processed**
 - Verify applications exist in `data/<scholarship>/Applications/`
@@ -138,11 +134,12 @@ To add support for a new scholarship:
 
 ## Related Documentation
 
-- [Multi-Tenancy System](../docs/README_MULTI_TENANCY.md)
-- [Configuration Guide](../docs/implementation_guide.md)
-- [API Documentation](../docs/api_server_architecture.md)
+- [Scholarship Process](../docs/SCHOLARSHIP_PROCESS.md) — End-to-end configuration workflow
+- [Agent Architecture](../docs/AGENT_ARCHITECTURE.md) — How agents work
+- [Multi-Tenancy Design](../docs/MULTI_TENANCY_DESIGN.MD) — Multi-scholarship architecture
+- [API Server Architecture](../docs/API_SERVER_ARCHITECTURE.MD) — API design
 
 ---
 
-**Last Updated**: 2025-12-09  
+**Last Updated**: 2026-01-01  
 **Maintained By**: Pat G Cappelaere, IBM Federal Consulting

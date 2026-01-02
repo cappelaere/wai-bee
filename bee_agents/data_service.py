@@ -58,6 +58,24 @@ class DataService:
             logger.error(f"Error loading scholarship info: {e}")
             return None
     
+    def load_agents_config(self) -> Optional[Dict[str, Any]]:
+        """Load agents configuration from agents.json.
+        
+        Returns:
+            Dictionary containing agents configuration, or None if not found
+        """
+        agents_file = Path("data") / self.scholarship_name / "agents.json"
+        if not agents_file.exists():
+            logger.warning(f"Agents config file not found: {agents_file}")
+            return None
+        
+        try:
+            with open(agents_file, 'r', encoding='utf-8') as f:
+                return json.load(f)
+        except Exception as e:
+            logger.error(f"Error loading agents config: {e}")
+            return None
+    
     def get_all_wai_numbers(self) -> List[str]:
         """Get list of all WAI numbers with analysis data.
         
@@ -421,7 +439,11 @@ class DataService:
             analysis = self.load_application_analysis(wai_number)
             app_data = self.load_application_data(wai_number)
             
-            if analysis and 'scores' in analysis:
+            if not analysis:
+                continue
+
+            # Support both legacy format (scores object) and new facet-based schema output.
+            if 'scores' in analysis:
                 score_entry = {
                     'wai_number': wai_number,
                     'overall_score': analysis['scores'].get('overall_score', 0),
@@ -430,6 +452,30 @@ class DataService:
                     'attachment_score': analysis['scores'].get('attachment_score', 0),
                     'summary': analysis.get('summary', '')
                 }
+            elif 'facets' in analysis:
+                facets = analysis.get('facets') or []
+                facet_scores = {f.get('name'): int(f.get('score', 0)) for f in facets if isinstance(f, dict)}
+
+                # Map 0–10 facet scores into the historical 0–30/0–30/0–40 component scores for display.
+                completeness_0_10 = facet_scores.get('Completeness', 0)
+                validity_0_10 = facet_scores.get('Eligibility & Validity', 0)
+                attachment_0_10 = facet_scores.get('Attachment Quality', completeness_0_10)
+
+                completeness_score = int(round(completeness_0_10 * 3))  # 0–30
+                validity_score = int(round(validity_0_10 * 3))          # 0–30
+                attachment_score = int(round(attachment_0_10 * 4))      # 0–40
+                overall_score = int(completeness_score + validity_score + attachment_score)
+
+                score_entry = {
+                    'wai_number': wai_number,
+                    'overall_score': overall_score,
+                    'completeness_score': completeness_score,
+                    'validity_score': validity_score,
+                    'attachment_score': attachment_score,
+                    'summary': analysis.get('overall_notes', '')
+                }
+            else:
+                continue
                 
                 # Add applicant information if available
                 if app_data:

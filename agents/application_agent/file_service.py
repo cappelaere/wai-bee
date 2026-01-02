@@ -11,10 +11,9 @@ License: MIT
 import json
 import logging
 from pathlib import Path
-from typing import Optional
+from typing import Optional, Any
 
 from models.application_data import ApplicationData
-from models.application_score import ApplicationAnalysis
 from utils.file_identifier import get_output_json_path, is_already_processed
 from utils.json_writer import save_application_json
 
@@ -95,7 +94,7 @@ class FileService:
     
     @staticmethod
     def save_analysis(
-        analysis: ApplicationAnalysis,
+        analysis: Any,
         analysis_path: Path
     ) -> bool:
         """Save analysis data to JSON file.
@@ -109,7 +108,11 @@ class FileService:
         """
         try:
             with open(analysis_path, 'w', encoding='utf-8') as f:
-                json.dump(analysis.model_dump(), f, indent=2, ensure_ascii=False, default=str)
+                if hasattr(analysis, "model_dump"):
+                    payload = analysis.model_dump()
+                else:
+                    payload = analysis
+                json.dump(payload, f, indent=2, ensure_ascii=False, default=str)
             logger.info(f"Saved analysis to: {analysis_path.name}")
             return True
         except Exception as e:

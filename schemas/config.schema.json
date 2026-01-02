@@ -1,0 +1,262 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "ScholarshipConfigSchema",
+  "description": "Schema for scholarship configuration YAML used as the single source of truth to generate evaluation artifacts.",
+  "type": "object",
+  "required": [
+    "scholarship",
+    "artifacts",
+    "scoring",
+    "aggregation",
+    "governance"
+  ],
+  "properties": {
+
+    "scholarship": {
+      "type": "object",
+      "required": [
+        "id",
+        "version",
+        "status",
+        "intent",
+        "eligibility",
+        "submission_requirements"
+      ],
+      "properties": {
+        "id": { "type": "string" },
+        "version": { "type": "string" },
+        "status": {
+          "type": "string",
+          "enum": ["draft", "locked"]
+        },
+
+        "metadata": {
+          "type": "object",
+          "additionalProperties": true
+        },
+
+        "intent": {
+          "type": "object",
+          "required": ["purpose", "target_audience", "definition_of_excellence"],
+          "properties": {
+            "purpose": { "type": "string" },
+            "definition_of_excellence": { "type": "string" },
+            "target_audience": {
+              "type": "object",
+              "required": ["career_stage", "minimum_years_experience"],
+              "properties": {
+                "career_stage": { "type": "string" },
+                "minimum_years_experience": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "attributes": {
+                  "type": "array",
+                  "items": { "type": "string" }
+                }
+              }
+            }
+          }
+        },
+
+        "eligibility": {
+          "type": "object",
+          "required": ["membership", "experience", "attendance"],
+          "properties": {
+            "membership": {
+              "type": "object",
+              "required": [
+                "organization",
+                "must_be_member_by",
+                "must_remain_member_through"
+              ],
+              "properties": {
+                "organization": { "type": "string" },
+                "must_be_member_by": {
+                  "type": "string",
+                  "format": "date"
+                },
+                "must_remain_member_through": {
+                  "type": "string",
+                  "format": "date"
+                }
+              }
+            },
+            "experience": {
+              "type": "object",
+              "required": ["minimum_years", "career_stage_required"],
+              "properties": {
+                "minimum_years": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "career_stage_required": { "type": "string" }
+              }
+            },
+            "attendance": {
+              "type": "object",
+              "required": ["commitment_required"],
+              "properties": {
+                "commitment_required": { "type": "boolean" }
+              }
+            }
+          }
+        },
+
+        "submission_requirements": {
+          "type": "object",
+          "required": [
+            "resume",
+            "essay",
+            "recommendation",
+            "application_form"
+          ],
+          "properties": {
+            "resume": {
+              "type": "object",
+              "required": ["required", "max_pages", "photo_allowed"],
+              "properties": {
+                "required": { "type": "boolean" },
+                "max_pages": { "type": "integer", "minimum": 1 },
+                "photo_allowed": { "type": "boolean" }
+              }
+            },
+            "essay": {
+              "type": "object",
+              "required": ["required", "max_words", "prompt"],
+              "properties": {
+                "required": { "type": "boolean" },
+                "max_words": { "type": "integer", "minimum": 1 },
+                "prompt": { "type": "string" }
+              }
+            },
+            "recommendation": {
+              "type": "object",
+              "required": ["required", "count", "family_members_allowed"],
+              "properties": {
+                "required": { "type": "boolean" },
+                "count": { "type": "integer", "minimum": 0 },
+                "family_members_allowed": { "type": "boolean" },
+                "max_pages": { "type": "integer", "minimum": 1 }
+              }
+            },
+            "application_form": {
+              "type": "object",
+              "required": ["required"],
+              "properties": {
+                "required": { "type": "boolean" }
+              }
+            }
+          }
+        }
+      }
+    },
+
+    "artifacts": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "object",
+        "required": ["enabled", "facets"],
+        "properties": {
+          "enabled": { "type": "boolean" },
+          "purpose": { "type": "string" },
+          "facets": {
+            "type": "array",
+            "minItems": 0,
+            "maxItems": 3,
+            "items": {
+              "type": "object",
+              "required": ["name", "description"],
+              "properties": {
+                "name": { "type": "string" },
+                "description": { "type": "string" },
+                "evidence_expected": {
+                  "type": "array",
+                  "items": { "type": "string" }
+                }
+              },
+              "additionalProperties": false
+            }
+          }
+        }
+      }
+    },
+
+    "scoring": {
+      "type": "object",
+      "required": ["scale", "semantics", "missing_evidence"],
+      "properties": {
+        "scale": {
+          "type": "object",
+          "required": ["min", "max"],
+          "properties": {
+            "min": { "type": "integer" },
+            "max": { "type": "integer" }
+          }
+        },
+        "semantics": {
+          "type": "object",
+          "required": ["score_0", "score_5", "score_10"],
+          "properties": {
+            "score_0": { "type": "string" },
+            "score_5": { "type": "string" },
+            "score_10": { "type": "string" }
+          }
+        },
+        "missing_evidence": {
+          "type": "object",
+          "required": ["max_score", "note_required"],
+          "properties": {
+            "max_score": { "type": "integer" },
+            "note_required": { "type": "boolean" }
+          }
+        }
+      }
+    },
+
+    "aggregation": {
+      "type": "object",
+      "required": ["enabled", "weights"],
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "weights": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1
+          }
+        },
+        "normalization": { "type": "string" },
+        "ranking": {
+          "type": "object",
+          "additionalProperties": true
+        }
+      }
+    },
+
+    "governance": {
+      "type": "object",
+      "required": [
+        "criteria_immutable",
+        "schema_versioning",
+        "prompt_generation"
+      ],
+      "properties": {
+        "criteria_immutable": { "type": "boolean" },
+        "schema_versioning": { "type": "string" },
+        "prompt_generation": { "type": "string" },
+        "audit_trail": {
+          "type": "object",
+          "additionalProperties": true
+        },
+        "human_in_the_loop": {
+          "type": "object",
+          "additionalProperties": true
+        }
+      }
+    }
+  },
+
+  "additionalProperties": false
+}

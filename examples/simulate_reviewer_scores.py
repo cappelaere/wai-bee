@@ -1,21 +1,25 @@
 #!/usr/bin/env python3
 """
-Simulate reviewer scores for current Delaney_Wings applicants.
+Simulate reviewer scores for current applicants in a scholarship.
 
 This script:
   - Loads reviewers from config/users.json (where "reviewer": true)
-  - Identifies current applicants from outputs/Delaney_Wings/*
+  - Identifies current applicants from outputs/{scholarship}/*
   - Uses the API's /reviews endpoint to submit scores for each reviewer/applicant
 
 It runs the API app in-process via FastAPI's TestClient, so it does not require
 the Docker containers to be running. Reviews are written under:
 
-  outputs/Delaney_Wings/reviews/{initials}/{wai_number}.json
+  outputs/{scholarship}/reviews/{initials}/{wai_number}.json
 
 Usage (from project root):
 
   source venv/bin/activate
-  python examples/simulate_reviewer_scores.py
+  python examples/simulate_reviewer_scores.py <scholarship>
+
+Examples:
+  python examples/simulate_reviewer_scores.py Delaney_Wings
+  python examples/simulate_reviewer_scores.py Evans_Wings
 """
 
 import json
@@ -69,8 +73,8 @@ def get_current_applicants_for_scholarship(scholarship: str) -> List[str]:
     return wai_numbers
 
 
-def simulate_scores_for_delaney_wings() -> None:
-    scholarship = "Delaney_Wings"
+def simulate_scores(scholarship: str) -> None:
+    """Simulate reviewer scores for all applicants in the given scholarship."""
     config = load_user_config()
 
     reviewers = get_reviewer_users_for_scholarship(config, scholarship)
@@ -109,7 +113,7 @@ def simulate_scores_for_delaney_wings() -> None:
             response = client.post(
                 "/reviews",
                 params={"scholarship": scholarship, "wai_number": wai},
-                json={"score": score, "comments": comments},
+                data={"score": score, "comments": comments},
                 headers=headers,
             )
 
@@ -131,6 +135,12 @@ def simulate_scores_for_delaney_wings() -> None:
 
 
 if __name__ == "__main__":
-    simulate_scores_for_delaney_wings()
+    if len(sys.argv) < 2:
+        print("Usage: python examples/simulate_reviewer_scores.py <scholarship>")
+        print("Example: python examples/simulate_reviewer_scores.py Evans_Wings")
+        sys.exit(1)
+    
+    scholarship_arg = sys.argv[1]
+    simulate_scores(scholarship_arg)
 
 

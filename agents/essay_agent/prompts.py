@@ -84,52 +84,7 @@ IMPORTANT:
     return prompt
 
 
-def build_retry_prompt(original_response: str, error_message: str) -> str:
-    """Build prompt for retry after JSON parsing failure.
-    
-    Args:
-        original_response: The original LLM response that failed.
-        error_message: The error message from parsing attempt.
-        
-    Returns:
-        Formatted retry prompt.
-    """
-    prompt = f"""Your previous response could not be parsed as valid JSON.
-
-ERROR: {error_message}
-
-PREVIOUS RESPONSE:
-{original_response}
-
-Please provide a corrected response with ONLY valid JSON matching the required structure.
-Do not include any explanatory text, markdown formatting, or code blocks.
-Start directly with the opening brace {{ and end with the closing brace }}.
-
-Required JSON structure:
-{{
-  "summary": "string",
-  "profile_features": {{
-    "motivation_summary": "string",
-    "career_goals_summary": "string",
-    "aviation_path_stage": "string",
-    "community_service_summary": "string",
-    "leadership_roles": ["string"],
-    "personal_character_indicators": ["string"],
-    "alignment_with_wai": "string",
-    "unique_strengths": ["string"]
-  }},
-  "scores": {{
-    "motivation_score": 0,
-    "goals_clarity_score": 0,
-    "character_service_leadership_score": 0
-  }},
-  "score_breakdown": {{
-    "motivation_score_reasoning": "string",
-    "goals_clarity_score_reasoning": "string",
-    "character_service_leadership_score_reasoning": "string"
-  }}
-}}"""
-
-    return prompt
+# Note: Repair prompts are now generated and loaded from agents.json via utils.prompt_loader.
+# The build_retry_prompt function was removed as it is no longer used.
 
 # Made with Bob

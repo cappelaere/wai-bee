@@ -1,61 +1,52 @@
-# API Configuration Endpoints Documentation
+# API Prompt & Agent Configuration Endpoints
 
 ## Overview
 
-The API now includes endpoints to retrieve:
-1. **Evaluation Criteria** - Detailed scoring criteria for each evaluation type
-2. **Agent Configuration** - Agent scoring weights and evaluation details
+The API provides read-only access to:
+1. **Evaluation Prompts** — Generated analysis and repair prompts used by agents
+2. **Agent Configuration** — Agent settings, weights, and evaluation facets
 
-These endpoints provide transparency into the evaluation process and scoring methodology.
+All prompts and configurations are generated from `config.yml` via `generate_artifacts.py` and should not be modified at runtime.
 
-## Criteria Endpoints
+---
 
-### 1. List All Criteria
+## Prompt Endpoints
 
-**Endpoint:** `GET /criteria`
+### 1. List All Prompts
 
-**Description:** List all available evaluation criteria for the scholarship.
+**Endpoint:** `GET /criteria?scholarship={scholarship}`
+
+**Description:** List all available evaluation prompts for a scholarship.
+
+**Parameters:**
+- `scholarship` (query, required): Scholarship name (e.g., `Delaney_Wings`)
 
 **Response:**
 ```json
 {
   "scholarship": "Delaney_Wings",
-  "criteria_count": 5,
+  "criteria_count": 8,
   "criteria": [
     {
-      "type": "application",
-      "name": "Application Criteria",
-      "description": "Criteria for evaluating application completeness and validity",
-      "filename": "application_criteria.txt",
-      "url": "/criteria/application"
+      "name": "application_analysis",
+      "filename": "application_analysis.txt",
+      "type": "analysis",
+      "agent": "application",
+      "url": "http://localhost:8200/criteria/file?scholarship=Delaney_Wings&filename=application_analysis.txt"
     },
     {
-      "type": "academic",
-      "name": "Academic Criteria",
-      "description": "Criteria for evaluating academic performance and readiness",
-      "filename": "academic_criteria.txt",
-      "url": "/criteria/academic"
+      "name": "application_repair",
+      "filename": "application_repair.txt",
+      "type": "repair",
+      "agent": "application",
+      "url": "http://localhost:8200/criteria/file?scholarship=Delaney_Wings&filename=application_repair.txt"
     },
     {
-      "type": "essay",
-      "name": "Essay Criteria",
-      "description": "Criteria for evaluating essay quality and content",
-      "filename": "essay_criteria.txt",
-      "url": "/criteria/essay"
-    },
-    {
-      "type": "recommendation",
-      "name": "Recommendation Criteria",
-      "description": "Criteria for evaluating letters of recommendation",
-      "filename": "recommendation_criteria.txt",
-      "url": "/criteria/recommendation"
-    },
-    {
-      "type": "social",
-      "name": "Social Criteria",
-      "description": "Criteria for evaluating social impact and community involvement",
-      "filename": "social_criteria.txt",
-      "url": "/criteria/social"
+      "name": "resume_analysis",
+      "filename": "resume_analysis.txt",
+      "type": "analysis",
+      "agent": "resume",
+      "url": "..."
     }
   ]
 }
@@ -63,544 +54,298 @@ These endpoints provide transparency into the evaluation process and scoring met
 
 **Example:**
 ```bash
-curl http://localhost:8200/criteria
+curl "http://localhost:8200/criteria?scholarship=Delaney_Wings"
 ```
 
 ---
 
-### 2. Get Specific Criteria
+### 2. Get Prompt by Agent Type
 
-**Endpoint:** `GET /criteria/{criteria_type}`
+**Endpoint:** `GET /criteria/by-type?criteria_type={agent}&scholarship={scholarship}`
 
-**Description:** Get evaluation criteria for a specific type.
+**Description:** Get the full analysis prompt text for a specific agent.
 
 **Parameters:**
-- `criteria_type` (path): Type of criteria
-  - Valid values: `application`, `academic`, `essay`, `recommendation`, `social`
+- `criteria_type` (query, required): Agent name (`application`, `resume`, `essay`, `recommendation`)
+- `scholarship` (query, required): Scholarship name
 
 **Response:**
 ```json
 {
   "scholarship": "Delaney_Wings",
-  "criteria_type": "application",
-  "filename": "application_criteria.txt",
-  "content": "APPLICATION COMPLETENESS AND VALIDITY SCORING CRITERIA\n\n...",
-  "line_count": 51
+  "criteria_type": "essay",
+  "filename": "essay_analysis.txt",
+  "content": "You are an **evaluation assistant** supporting the...",
+  "line_count": 92
 }
 ```
 
 **Examples:**
-
 ```bash
-# Get application criteria
-curl http://localhost:8200/criteria/application
+# Get essay analysis prompt
+curl "http://localhost:8200/criteria/by-type?criteria_type=essay&scholarship=Delaney_Wings"
 
-# Get academic criteria
-curl http://localhost:8200/criteria/academic
-
-# Get essay criteria
-curl http://localhost:8200/criteria/essay
-
-# Get recommendation criteria
-curl http://localhost:8200/criteria/recommendation
-
-# Get social criteria
-curl http://localhost:8200/criteria/social
-```
-
-**Error Response (Invalid Type):**
-```json
-{
-  "detail": "Invalid criteria type. Must be one of: application, academic, essay, recommendation, social"
-}
-```
-
-**Error Response (Not Found):**
-```json
-{
-  "detail": "Academic criteria not found for Delaney_Wings"
-}
+# Get resume analysis prompt
+curl "http://localhost:8200/criteria/by-type?criteria_type=resume&scholarship=Delaney_Wings"
 ```
 
 ---
 
-## Criteria Types
+### 3. Download Prompt File
 
-### Application Criteria
-Evaluates the completeness and validity of the application itself:
-- Completeness score (30 points)
-- Data validity score (30 points)
-- Attachment completeness score (40 points)
+**Endpoint:** `GET /criteria/file?scholarship={scholarship}&filename={filename}`
 
-### Academic Criteria
-Evaluates academic performance and readiness:
-- Academic performance
-- Academic relevance to aviation
-- Academic readiness for training
-- Academic awards and achievements
+**Description:** Download a specific prompt file as plain text.
 
-### Essay Criteria
-Evaluates essay quality and content:
-- Writing quality and clarity
-- Content relevance to scholarship goals
-- Personal insight and reflection
-- Alignment with aviation career goals
+**Parameters:**
+- `scholarship` (query, required): Scholarship name
+- `filename` (query, required): Prompt filename (e.g., `essay_analysis.txt`)
 
-### Recommendation Criteria
-Evaluates letters of recommendation:
-- Recommender credibility and relationship
-- Specific examples and evidence
-- Assessment of applicant's qualifications
-- Strength of endorsement
+**Response:** Plain text file
 
-### Social Criteria
-Evaluates social impact and community involvement:
-- Community service and volunteer work
-- Leadership roles and initiatives
-- Social impact and contributions
-- Commitment to helping others
-
----
-
-## Use Cases
-
-### 1. Display Criteria in UI
-```javascript
-// Fetch all criteria
-const response = await fetch('http://localhost:8200/criteria');
-const data = await response.json();
-
-// Display criteria list
-data.criteria.forEach(criteria => {
-  console.log(`${criteria.name}: ${criteria.description}`);
-});
-```
-
-### 2. Show Specific Criteria to Reviewers
-```javascript
-// Get application criteria for review
-const response = await fetch('http://localhost:8200/criteria/application');
-const data = await response.json();
-
-// Display criteria content
-document.getElementById('criteria-content').textContent = data.content;
-```
-
-### 3. Validate Criteria Availability
-```python
-import requests
-
-# Check which criteria are available
-response = requests.get('http://localhost:8200/criteria')
-criteria_types = [c['type'] for c in response.json()['criteria']]
-
-print(f"Available criteria: {', '.join(criteria_types)}")
-```
-
----
-
-## Integration with Multi-Tenancy
-
-The criteria endpoints are **scholarship-aware**:
-
-- Each scholarship has its own criteria files in `data/{scholarship}/criteria/`
-- The API automatically serves criteria for the initialized scholarship
-- Different scholarships can have different evaluation criteria
-- Criteria are isolated per scholarship (no cross-scholarship access)
-
-**Example Directory Structure:**
-```
-data/
-├── Delaney_Wings/
-│   └── criteria/
-│       ├── application_criteria.txt
-│       ├── academic_criteria.txt
-│       ├── essay_criteria.txt
-│       ├── recommendation_criteria.txt
-│       └── social_criteria.txt
-└── Evans_Wings/
-    └── criteria/
-        ├── application_criteria.txt
-        ├── academic_criteria.txt
-        ├── essay_criteria.txt
-        ├── recommendation_criteria.txt
-        └── social_criteria.txt
-```
-
----
-
-## Testing
-
-### Run Criteria Tests
+**Example:**
 ```bash
-# Run only criteria tests
-python3 -m pytest tests/test_api_criteria.py -v
-
-# Run all API tests including criteria
-python3 -m pytest tests/test_api_*.py -v
+curl "http://localhost:8200/criteria/file?scholarship=Delaney_Wings&filename=essay_analysis.txt" -o essay_prompt.txt
 ```
-
-### Test Results
-```
-tests/test_api_criteria.py::test_list_criteria PASSED
-tests/test_api_criteria.py::test_get_application_criteria PASSED
-tests/test_api_criteria.py::test_get_academic_criteria PASSED
-tests/test_api_criteria.py::test_get_essay_criteria PASSED
-tests/test_api_criteria.py::test_get_recommendation_criteria PASSED
-tests/test_api_criteria.py::test_get_invalid_criteria_type PASSED
-tests/test_api_criteria.py::test_criteria_content_structure PASSED
-tests/test_api_criteria.py::test_all_criteria_types_available PASSED
-
-8 passed in 0.04s
-```
-
----
-
-## Error Handling
-
-### Service Not Initialized (503)
-```json
-{
-  "detail": "Service not initialized"
-}
-```
-
-### Invalid Criteria Type (400)
-```json
-{
-  "detail": "Invalid criteria type. Must be one of: application, academic, essay, recommendation, social"
-}
-```
-
-### Criteria Not Found (404)
-```json
-{
-  "detail": "Essay criteria not found for Delaney_Wings"
-}
-```
-
-### Internal Server Error (500)
-```json
-{
-  "detail": "Error message details"
-}
-```
-
----
-
-## API Documentation
-
-The criteria endpoints are automatically included in the OpenAPI documentation:
-
-- **Swagger UI:** http://localhost:8200/docs
-- **ReDoc:** http://localhost:8200/redoc
-- **OpenAPI JSON:** http://localhost:8200/openapi.json
-- **OpenAPI YAML:** http://localhost:8200/openapi.yml
 
 ---
 
 ## Agent Configuration Endpoints
 
-### 1. Get All Agents Configuration
+### 4. Get All Agents Configuration
 
-**Endpoint:** `GET /agents`
+**Endpoint:** `GET /admin/{scholarship}/agents`
 
-**Description:** Get complete agent configuration including scoring weights and evaluation details.
+**Description:** Get complete agent configuration including weights, prompts, and schemas.
 
 **Response:**
 ```json
 {
   "scholarship_name": "Delaney_Wings",
-  "description": "Agent configuration for Valerie Delaney Memorial Scholarship application processing",
+  "description": "Agent configuration for Valerie Delaney Memorial Scholarship",
   "version": "1.0.0",
   "agents": [
     {
       "name": "application",
       "display_name": "Application Agent",
-      "description": "Extracts and analyzes applicant information from the main application PDF",
+      "description": "Evaluates application completeness and eligibility",
       "weight": 0.20,
       "enabled": true,
       "required": true,
-      "evaluates": [
-        "Basic eligibility",
-        "Contact information",
-        "Educational background",
-        "Aviation experience",
-        "Career goals"
-      ],
-      "criteria": "data/Delaney_Wings/criteria/application_criteria.txt"
+      "evaluates": ["Completeness", "Eligibility & Validity", "Attachment Quality"],
+      "analysis_prompt": "prompts/application_analysis.txt",
+      "repair_prompt": "prompts/application_repair.txt",
+      "schema": "schemas_generated/application_analysis.schema.json"
     },
     {
-      "name": "academic",
-      "display_name": "Academic Agent",
+      "name": "resume",
+      "display_name": "Resume Agent",
       "weight": 0.25,
-      "evaluates": [
-        "Educational background",
-        "Academic achievements",
-        "Aviation certifications",
-        "Work experience",
-        "Skills and qualifications"
-      ]
+      "evaluates": ["Academic Achievement", "Aviation Experience", "Leadership & Activities"]
     },
     {
       "name": "essay",
       "display_name": "Essay Agent",
       "weight": 0.30,
-      "evaluates": [
-        "Aviation passion and motivation",
-        "Career goals clarity",
-        "Personal character traits",
-        "Leadership and community service",
-        "Alignment with WAI values"
-      ]
+      "evaluates": ["Aviation Passion & Goals", "Personal Character", "Scholarship Connection"]
     },
     {
       "name": "recommendation",
       "display_name": "Recommendation Agent",
       "weight": 0.25,
-      "evaluates": [
-        "Recommender credibility",
-        "Specific examples and evidence",
-        "Character assessment",
-        "Professional qualities",
-        "Consistency across letters"
-      ]
+      "evaluates": ["Recommender Credibility", "Specific Endorsements", "Potential Assessment"]
     }
   ],
-  "scoring_agents": ["application", "recommendation", "academic", "essay"],
-  "total_weight": 1.00
+  "scoring_agents": ["application", "resume", "essay", "recommendation"],
+  "total_weight": 1.0
 }
 ```
 
 **Example:**
 ```bash
-curl http://localhost:8200/agents
+curl "http://localhost:8200/admin/Delaney_Wings/agents"
 ```
 
 ---
 
-### 2. Get Specific Agent Configuration
+### 5. Get Scoring Weights
 
-**Endpoint:** `GET /agents/{agent_name}`
+**Endpoint:** `GET /admin/{scholarship}/weights`
 
-**Description:** Get configuration for a specific agent.
-
-**Parameters:**
-- `agent_name` (path): Name of the agent
-  - Valid values: `application`, `academic`, `essay`, `recommendation`, `attachment`
+**Description:** Get agent scoring weights for final score calculation.
 
 **Response:**
 ```json
 {
   "scholarship": "Delaney_Wings",
-  "agent": {
-    "name": "application",
-    "display_name": "Application Agent",
-    "description": "Extracts and analyzes applicant information from the main application PDF",
-    "weight": 0.20,
-    "enabled": true,
-    "required": true,
-    "evaluates": [
-      "Basic eligibility",
-      "Contact information",
-      "Educational background",
-      "Aviation experience",
-      "Career goals"
-    ],
-    "criteria": "data/Delaney_Wings/criteria/application_criteria.txt",
-    "schema": "schemas/application_agent_schema.json",
-    "output_directory": "outputs/applications",
-    "output_file": "{wai_number}_application_analysis.json"
+  "weights": {
+    "application": 0.20,
+    "resume": 0.25,
+    "essay": 0.30,
+    "recommendation": 0.25
+  },
+  "total": 1.0
+}
+```
+
+---
+
+### 6. Get Agent Prompts
+
+**Endpoint:** `GET /admin/{scholarship}/prompts/{agent_name}`
+
+**Description:** Get analysis and repair prompts for a specific agent.
+
+**Parameters:**
+- `scholarship` (path): Scholarship name
+- `agent_name` (path): Agent name (`application`, `resume`, `essay`, `recommendation`)
+
+**Response:**
+```json
+{
+  "scholarship": "Delaney_Wings",
+  "agent": "essay",
+  "analysis_prompt": "You are an **evaluation assistant**...",
+  "repair_prompt": "You previously generated JSON that does **not** conform..."
+}
+```
+
+---
+
+### 7. Get Agent Schema
+
+**Endpoint:** `GET /admin/{scholarship}/schema/{agent_name}`
+
+**Description:** Get the output JSON schema for a specific agent.
+
+**Parameters:**
+- `scholarship` (path): Scholarship name
+- `agent_name` (path): Agent name
+
+**Response:**
+```json
+{
+  "scholarship": "Delaney_Wings",
+  "agent": "essay",
+  "schema": {
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "title": "Essay Analysis Output",
+    "type": "object",
+    "required": ["facets", "overall_notes"],
+    "properties": {
+      "facets": {
+        "type": "array",
+        "items": {...}
+      }
+    }
   }
 }
 ```
 
-**Examples:**
+---
 
-```bash
-# Get application agent config
-curl http://localhost:8200/agents/application
+## Prompt Types
 
-# Get academic agent config
-curl http://localhost:8200/agents/academic
+### Analysis Prompts
 
-# Get essay agent config
-curl http://localhost:8200/agents/essay
+Analysis prompts guide agents in evaluating application materials:
 
-# Get recommendation agent config
-curl http://localhost:8200/agents/recommendation
+| Agent | Prompt File | Purpose |
+|-------|-------------|---------|
+| Application | `application_analysis.txt` | Evaluate completeness, eligibility, attachments |
+| Resume | `resume_analysis.txt` | Evaluate academic achievement, experience |
+| Essay | `essay_analysis.txt` | Evaluate motivation, character, goals |
+| Recommendation | `recommendation_analysis.txt` | Evaluate endorsement quality, credibility |
 
-# Get attachment agent config (non-scoring)
-curl http://localhost:8200/agents/attachment
+### Repair Prompts
+
+Repair prompts guide the LLM in fixing invalid JSON output:
+
+| Agent | Prompt File | Purpose |
+|-------|-------------|---------|
+| Application | `application_repair.txt` | Fix schema validation errors |
+| Resume | `resume_repair.txt` | Fix schema validation errors |
+| Essay | `essay_repair.txt` | Fix schema validation errors |
+| Recommendation | `recommendation_repair.txt` | Fix schema validation errors |
+
+---
+
+## Prompt Structure
+
+All analysis prompts follow a consistent structure:
+
+1. **Role Framing** — Establishes the LLM as an evaluation assistant
+2. **Scholarship Context** — Identifies the scholarship being evaluated
+3. **Evaluation Facets** — Lists the specific criteria to score (0–10)
+4. **Scoring Rules** — Guidelines for assigning scores
+5. **Evidence Requirements** — What evidence to cite
+6. **Output Contract** — JSON schema placeholder (`{{AGENT_SCHEMA}}`)
+7. **Self-Check Block** — Validation instructions
+
+Schema placeholders are replaced with actual JSON at runtime by `utils/prompt_loader.py`.
+
+---
+
+## Directory Structure
+
+```
+data/{scholarship}/
+├── config.yml              # Human-authored configuration
+├── agents.json             # Generated agent configuration
+├── prompts/                # Generated prompt files
+│   ├── application_analysis.txt
+│   ├── application_repair.txt
+│   ├── resume_analysis.txt
+│   ├── resume_repair.txt
+│   ├── essay_analysis.txt
+│   ├── essay_repair.txt
+│   ├── recommendation_analysis.txt
+│   └── recommendation_repair.txt
+└── schemas_generated/      # Generated output schemas
+    ├── application_analysis.schema.json
+    ├── resume_analysis.schema.json
+    ├── essay_analysis.schema.json
+    └── recommendation_analysis.schema.json
 ```
 
-**Error Response (Not Found):**
+---
+
+## Generation Workflow
+
+Prompts and schemas are generated, not manually written:
+
+```bash
+# Validate configuration first
+python scripts/validate_config.py data/{scholarship}
+
+# Generate all artifacts (agents.json, prompts, schemas)
+python scripts/generate_artifacts.py data/{scholarship}
+
+# Or generate prompts only
+python scripts/generate_prompts.py data/{scholarship}
+```
+
+See `docs/SCHOLARSHIP_PROCESS.md` for the complete workflow.
+
+---
+
+## Error Handling
+
+| Status | Error |
+|--------|-------|
+| 400 | Invalid criteria type or filename |
+| 404 | Scholarship not found or prompts not generated |
+| 500 | Internal server error |
+
+**Example Error Response:**
 ```json
 {
-  "detail": "Agent 'invalid_agent' not found in configuration"
+  "detail": "Prompt not found for 'social'. Available types: application, resume, essay, recommendation"
 }
 ```
 
 ---
 
-## Agent Scoring Weights
-
-### Understanding Weights
-
-Each scoring agent has a weight that determines its contribution to the final score:
-
-| Agent | Weight | Contribution |
-|-------|--------|--------------|
-| Application | 0.20 | 20% |
-| Academic | 0.25 | 25% |
-| Essay | 0.30 | 30% |
-| Recommendation | 0.25 | 25% |
-| **Total** | **1.00** | **100%** |
-
-**Final Score Calculation:**
-```
-Final Score = (Application Score × 0.20) +
-              (Academic Score × 0.25) +
-              (Essay Score × 0.30) +
-              (Recommendation Score × 0.25)
-```
-
-### Non-Scoring Agents
-
-The **Attachment Agent** does not contribute to scoring:
-- Processes and redacts PII from documents
-- Extracts text from PDFs
-- Prerequisite for other agents
-- No weight assigned
-
----
-
-## Use Cases
-
-### 1. Display Scoring Breakdown
-```javascript
-// Fetch agent configuration
-const response = await fetch('http://localhost:8200/agents');
-const config = await response.json();
-
-// Display scoring weights
-config.agents
-  .filter(a => config.scoring_agents.includes(a.name))
-  .forEach(agent => {
-    console.log(`${agent.display_name}: ${agent.weight * 100}%`);
-  });
-```
-
-### 2. Show What Each Agent Evaluates
-```javascript
-// Get specific agent details
-const response = await fetch('http://localhost:8200/agents/essay');
-const data = await response.json();
-
-// Display evaluation criteria
-console.log(`${data.agent.display_name} evaluates:`);
-data.agent.evaluates.forEach(item => {
-  console.log(`- ${item}`);
-});
-```
-
-### 3. Validate Scoring Configuration
-```python
-import requests
-
-# Get agent configuration
-response = requests.get('http://localhost:8200/agents')
-config = response.json()
-
-# Verify weights sum to 1.0
-total_weight = sum(
-    agent['weight']
-    for agent in config['agents']
-    if agent['name'] in config['scoring_agents']
-)
-
-print(f"Total weight: {total_weight}")
-assert abs(total_weight - 1.0) < 0.01, "Weights must sum to 1.0"
-```
-
----
-
-## Integration with Criteria Endpoints
-
-Agents and criteria work together:
-
-```javascript
-// Get agent configuration
-const agentResponse = await fetch('http://localhost:8200/agents/academic');
-const agentData = await agentResponse.json();
-
-// Get the criteria file path from agent config
-const criteriaPath = agentData.agent.criteria;
-console.log(`Criteria file: ${criteriaPath}`);
-
-// Fetch the actual criteria content
-const criteriaResponse = await fetch('http://localhost:8200/criteria/academic');
-const criteriaData = await criteriaResponse.json();
-
-console.log(`Criteria content:\n${criteriaData.content}`);
-```
-
----
-
-## Testing
-
-### Run Agent Configuration Tests
-```bash
-# Run only agent tests
-python3 -m pytest tests/test_api_agents.py -v
-
-# Run all configuration tests (agents + criteria)
-python3 -m pytest tests/test_api_agents.py tests/test_api_criteria.py -v
-```
-
-### Test Results
-```
-tests/test_api_agents.py::test_get_agents_config PASSED
-tests/test_api_agents.py::test_agents_config_structure PASSED
-tests/test_api_agents.py::test_get_application_agent PASSED
-tests/test_api_agents.py::test_get_academic_agent PASSED
-tests/test_api_agents.py::test_get_essay_agent PASSED
-tests/test_api_agents.py::test_get_recommendation_agent PASSED
-tests/test_api_agents.py::test_get_attachment_agent PASSED
-tests/test_api_agents.py::test_get_invalid_agent PASSED
-tests/test_api_agents.py::test_scoring_agents_weights_sum_to_one PASSED
-tests/test_api_agents.py::test_all_scoring_agents_have_weights PASSED
-tests/test_api_agents.py::test_agent_evaluates_field PASSED
-tests/test_api_agents.py::test_agent_criteria_field PASSED
-
-12 passed in 0.05s
-```
-
----
-
-## Summary
-
-**New Endpoints Added:**
-- `GET /criteria` - List all available criteria
-- `GET /criteria/{criteria_type}` - Get specific criteria content
-- `GET /agents` - Get complete agent configuration
-- `GET /agents/{agent_name}` - Get specific agent configuration
-
-**Test Coverage:**
-- 20 new tests added (8 criteria + 12 agents)
-- All tests passing (61 total tests)
-- Comprehensive validation of configuration endpoints
-
-**Benefits:**
-- **Transparent Evaluation:** Complete visibility into scoring methodology
-- **Scoring Weights:** Clear breakdown of how final scores are calculated
-- **Evaluation Details:** What each agent evaluates and why
-- **Criteria Access:** Detailed scoring criteria for each evaluation type
-- **Multi-Tenancy:** Each scholarship has its own configuration
-- **Consistency:** Ensures uniform evaluation across all applications
-
----
-
-**Last Updated:** 2025-12-10
-**Version:** 2.0.0
+**Last Updated:** 2026-01-01  
+**Version:** 2.0.0  
 **Author:** Pat G Cappelaere, IBM Federal Consulting

@@ -9,7 +9,6 @@ and regenerates:
     - data/<Scholarship>/scholarship.json
     - data/<Scholarship>/agents.json
     - data/<Scholarship>/criteria/*.txt
-    - optional weights snapshot: data/<Scholarship>/weights.json
 
 Existing runtime code (criteria_loader, agents_config, score_calculator)
 continues to read these generated files.
@@ -121,27 +120,6 @@ def generate_criteria_files(scholarship_folder: Path, config: dict) -> None:
             f.write(text.rstrip() + "\n")
 
 
-def generate_weights_json(scholarship_folder: Path, config: dict) -> None:
-    """Optional weights snapshot file for tooling."""
-    agents_cfg = config.get("agents", {})
-    weights = {}
-    for name, agent in agents_cfg.items():
-        weight = agent.get("weight")
-        if weight is not None:
-            weights[name] = {
-                "weight": weight,
-                "description": agent.get("description", ""),
-            }
-    total = sum(w["weight"] for w in weights.values())
-    out = {
-        "scholarship_name": config.get("scholarship", {}).get("id"),
-        "description": "Weights extracted from canonical config.yml",
-        "weights": weights,
-        "total_weight": round(total, 2),
-    }
-    write_json(scholarship_folder / "weights.json", out)
-
-
 def main(argv: list[str]) -> int:
     if len(argv) < 2:
         print("Usage: generate_scholarship_artifacts.py <ScholarshipName>")
@@ -161,7 +139,6 @@ def main(argv: list[str]) -> int:
     generate_scholarship_json(scholarship_folder, config)
     generate_agents_json(scholarship_folder, config)
     generate_criteria_files(scholarship_folder, config)
-    generate_weights_json(scholarship_folder, config)
 
     print(f"Generated artifacts for scholarship: {scholarship_name}")
     return 0

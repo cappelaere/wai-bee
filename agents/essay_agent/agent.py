@@ -11,61 +11,73 @@ License: MIT
 
 import json
 import logging
-import os
 import time
 from pathlib import Path
 from typing import Optional
 
-# Suppress LiteLLM's verbose logging
-os.environ["LITELLM_LOG"] = "ERROR"
-import litellm
-litellm.suppress_debug_info = True
-
 from litellm import completion
 
+from utils.llm_config import configure_litellm
+configure_litellm()
+
 from models.essay_data import EssayData
-from utils.essay_scanner import find_essay_files, read_essay_text, has_essay_files
-from utils.criteria_loader import load_criteria
+from utils.essay_scanner import read_essay_text
+from utils.attachment_finder import find_input_files_for_agent
+from utils.prompt_loader import load_analysis_prompt, load_repair_prompt, load_schema_path, load_agent_config
 from utils.schema_validator import (
     load_schema,
-    validate_and_fix_iterative,
     extract_json_from_text
 )
+from utils.llm_repair import validate_and_repair_once
 from agents.essay_agent.prompts import build_essay_analysis_prompt
 
 
 class EssayAgent:
     """Agent for analyzing personal essays and extracting profile information.
     
-    This agent processes personal essays (files 4 and 5) to evaluate:
-    - Aviation passion and motivation
-    - Career goals and clarity
-    - Personal character traits
-    - Leadership and community service
-    - Alignment with WAI values
+    This agent processes personal essays to evaluate leadership qualities,
+    career goals, and program alignment based on configurable facets.
     
     Attributes:
+        scholarship_folder: Path to scholarship data folder.
         schema: JSON schema for output validation.
-        schema_path: Path to the schema file.
     """
     
-    def __init__(self, schema_path: Optional[Path] = None):
-        """Initialize Essay Agent.
+    def __init__(self, scholarship_folder: Path):
+        """Initialize Essay Agent with scholarship configuration.
         
         Args:
-            schema_path: Path to JSON schema file. If None, uses default path.
+            scholarship_folder: Path to scholarship data folder containing agents.json.
+            
+        Raises:
+            FileNotFoundError: If the schema file cannot be found.
+            ValueError: If the schema path is not configured in agents.json.
         """
-        self.logger = logging.getLogger()
-        self.schema_path = schema_path or Path("schemas/essay_agent_schema.json")
-        self.schema = load_schema(self.schema_path)
-        self.logger.info("Essay Agent initialized")
+        self.logger = logging.getLogger(__name__)
+        self.scholarship_folder = scholarship_folder
+        self.scholarship_name = scholarship_folder.name
+        
+        # Load schema from agents.json config
+        schema_path = load_schema_path(scholarship_folder, "essay")
+        if not schema_path:
+            raise ValueError(
+                f"No schema path configured for 'essay' agent in {scholarship_folder}/agents.json. "
+                f"Run generate_artifacts.py to create the schema."
+            )
+        
+        if not schema_path.exists():
+            raise FileNotFoundError(
+                f"Schema file not found: {schema_path}. "
+                f"Run generate_artifacts.py to create the schema."
+            )
+        
+        self.schema = load_schema(schema_path)
+        self.logger.info(f"Loaded schema from: {schema_path}")
+        self.logger.info(f"Essay Agent initialized for {self.scholarship_name}")
     
     def analyze_essays(
         self,
-        attachments_dir: Path,
-        scholarship_name: str,
         wai_number: str,
-        criteria_path: Path,
         model: str = "ollama/llama3.2:3b",
         fallback_model: str = "ollama/llama3:latest",
         max_retries: int = 3,
@@ -74,10 +86,7 @@ class EssayAgent:
         """Analyze personal essays for a WAI application.
         
         Args:
-            attachments_dir: Base attachments directory.
-            scholarship_name: Name of scholarship.
             wai_number: WAI application number.
-            criteria_path: Path to evaluation criteria file.
             model: Primary LLM model to use.
             fallback_model: Fallback LLM model.
             max_retries: Maximum retry attempts.
@@ -90,10 +99,12 @@ class EssayAgent:
         self.logger.info(f"Starting essay analysis for WAI {wai_number}")
         
         try:
-            # Find essay files (files 4 and 5) in unified output structure
-            # Attachments are now in outputs/{scholarship}/{WAI}/attachments/
             output_base = Path("outputs")
-            essay_files = find_essay_files(output_base, scholarship_name, wai_number)
+            
+            # Find essay files using agents.json config
+            essay_files = find_input_files_for_agent(
+                self.scholarship_folder, "essay", wai_number, output_base
+            )
             
             if not essay_files:
                 self.logger.warning(f"No essay files found for WAI {wai_number}")
@@ -109,13 +120,12 @@ class EssayAgent:
             
             self.logger.info(f"Processing {len(essay_texts)} essay file(s)")
             
-            # Load evaluation criteria
-            # If criteria_path is a file, read it directly; if folder, use load_criteria
-            if criteria_path.is_file():
-                criteria = criteria_path.read_text(encoding='utf-8')
-                self.logger.info(f"Loaded criteria from: {criteria_path}")
-            else:
-                criteria = load_criteria(criteria_path, criteria_type="essay")
+            # Load analysis prompt from agents.json config
+            analysis_prompt = load_analysis_prompt(self.scholarship_folder, "essay")
+            if not analysis_prompt:
+                self.logger.error("No analysis prompt found for essay agent")
+                return None
+            self.logger.info(f"Loaded analysis prompt from agents.json config")
             
             # Analyze essays with LLM (with retry logic)
             analysis_data = None
@@ -128,7 +138,7 @@ class EssayAgent:
                     # Call LLM
                     llm_response = self._analyze_with_llm(
                         essay_texts,
-                        criteria,
+                        analysis_prompt,
                         current_model
                     )
                     
@@ -140,11 +150,16 @@ class EssayAgent:
                             current_model = fallback_model
                         continue
                     
-                    # Validate and fix
-                    is_valid, fixed_data, errors = validate_and_fix_iterative(
-                        json_data,
-                        self.schema,
-                        max_attempts=3
+                    # Validate, auto-fix, then optionally repair once via LLM
+                    repair_template = load_repair_prompt(self.scholarship_folder, "essay")
+                    is_valid, fixed_data, errors = validate_and_repair_once(
+                        data=json_data,
+                        schema=self.schema,
+                        repair_template=repair_template,
+                        model=current_model,
+                        system_prompt=None,
+                        local_fix_attempts=3,
+                        repair_max_tokens=2000,
                     )
                     
                     if is_valid:
@@ -153,6 +168,7 @@ class EssayAgent:
                         break
                     else:
                         self.logger.warning(f"  Validation failed: {len(errors)} errors")
+
                         if attempt < max_retries - 1:
                             current_model = fallback_model
                         
@@ -184,13 +200,15 @@ class EssayAgent:
                 score_breakdown=analysis_data.get("score_breakdown", {}),
                 source_files=source_files,
                 model_used=current_model,
-                criteria_used=str(criteria_path),
+                criteria_used=(load_agent_config(self.scholarship_folder, "essay") or {}).get(
+                    "analysis_prompt", "prompts/essay_analysis.txt"
+                ),
                 scores=scores
             )
             
             # Save to output directory if provided
             if output_dir:
-                self._save_results(essay_data, output_dir, scholarship_name, wai_number)
+                self._save_results(essay_data, output_dir, self.scholarship_name, wai_number)
             
             duration = time.time() - start_time
             self.logger.info(f"Essay analysis completed for WAI {wai_number} in {duration:.2f}s")
@@ -207,14 +225,14 @@ class EssayAgent:
     def _analyze_with_llm(
         self,
         essay_texts: list[str],
-        criteria: str,
+        analysis_prompt: str,
         model: str
     ) -> str:
         """Call LLM to analyze essays.
         
         Args:
             essay_texts: List of essay text content.
-            criteria: Evaluation criteria text.
+            analysis_prompt: Analysis prompt from agents.json config.
             model: LLM model to use.
             
         Returns:
@@ -224,7 +242,7 @@ class EssayAgent:
             Exception: If LLM call fails.
         """
         # Build prompt
-        prompt = build_essay_analysis_prompt(essay_texts, criteria)
+        prompt = build_essay_analysis_prompt(essay_texts, analysis_prompt)
         
         # Call LLM
         response = completion(
@@ -272,43 +290,25 @@ class EssayAgent:
     
     def process_batch(
         self,
-        attachments_dir: Path,
-        scholarship_name: str,
-        criteria_path: Path,
-        output_dir: Path,
+        wai_numbers: list[str],
         model: str = "ollama/llama3.2:3b",
         fallback_model: str = "ollama/llama3:latest",
         max_retries: int = 3,
-        wai_numbers: Optional[list[str]] = None
+        output_dir: Optional[Path] = None
     ) -> dict:
         """Process multiple WAI applications in batch.
         
         Args:
-            attachments_dir: Base attachments directory (kept for compatibility, but now uses outputs base).
-            scholarship_name: Name of scholarship.
-            criteria_path: Path to evaluation criteria file.
-            output_dir: Output directory for results.
+            wai_numbers: List of WAI numbers to process.
             model: Primary LLM model to use.
             fallback_model: Fallback LLM model.
             max_retries: Maximum retry attempts.
-            wai_numbers: Optional list of specific WAI numbers to process.
-                        If None, processes all WAI folders found.
+            output_dir: Output directory for results.
             
         Returns:
             Dictionary with processing statistics.
         """
         start_time = time.time()
-        
-        # Use unified output structure
-        output_base = Path("outputs")
-        
-        # Get list of WAI numbers to process
-        scholarship_dir = output_base / scholarship_name
-        
-        if wai_numbers is None:
-            # Process all WAI folders
-            wai_dirs = [d for d in scholarship_dir.iterdir() if d.is_dir()]
-            wai_numbers = [d.name for d in wai_dirs]
         
         total = len(wai_numbers)
         successful = 0
@@ -320,22 +320,13 @@ class EssayAgent:
         for i, wai_number in enumerate(wai_numbers, 1):
             self.logger.info(f"Processing {i}/{total}: WAI {wai_number}")
             
-            # Check if essays exist in unified structure
-            if not has_essay_files(output_base, scholarship_name, wai_number):
-                self.logger.info(f"  Skipping {wai_number} (no essay files)")
-                skipped += 1
-                continue
-            
             try:
                 result = self.analyze_essays(
-                    attachments_dir,
-                    scholarship_name,
-                    wai_number,
-                    criteria_path,
-                    model,
-                    fallback_model,
-                    max_retries,
-                    output_dir
+                    wai_number=wai_number,
+                    model=model,
+                    fallback_model=fallback_model,
+                    max_retries=max_retries,
+                    output_dir=output_dir
                 )
                 
                 if result:
