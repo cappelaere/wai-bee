@@ -40,7 +40,8 @@ def setup_logging(
     console_output: bool = True,
     file_output: bool = True,
     max_bytes: int = 10 * 1024 * 1024,  # 10MB
-    backup_count: int = 5
+    backup_count: int = 5,
+    force: bool = False
 ) -> None:
     """Setup centralized logging configuration.
     
@@ -56,6 +57,7 @@ def setup_logging(
         file_output: Enable file logging (default: True).
         max_bytes: Maximum size of log file before rotation (default: 10MB).
         backup_count: Number of backup log files to keep (default: 5).
+        force: Force reconfiguration even if already configured (default: False).
     
     Example:
         >>> setup_logging(log_level="DEBUG", console_output=True)
@@ -64,11 +66,11 @@ def setup_logging(
     
     Note:
         This function should be called once at application startup.
-        Subsequent calls will be ignored unless force_reconfigure=True.
+        Subsequent calls will be ignored unless force=True.
     """
     global _logging_configured
     
-    if _logging_configured:
+    if _logging_configured and not force:
         return
     
     # Use config values if not provided

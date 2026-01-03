@@ -127,6 +127,10 @@ class RecommendationAgent:
         Returns:
             RecommendationData if successful, None otherwise.
         """
+        raise RuntimeError(
+            "RecommendationAgent is deprecated for scoring. Use agents.scoring_runner.ScoringRunner "
+            "to run config-driven scoring for 'recommendation' (saved to recommendation_analysis.json)."
+        )
         # Load analysis prompt from agents.json config
         analysis_prompt = load_analysis_prompt(self.scholarship_folder, "recommendation")
         if not analysis_prompt:
@@ -164,6 +168,9 @@ class RecommendationAgent:
         Returns:
             ProcessingResult with statistics and errors.
         """
+        raise RuntimeError(
+            "RecommendationAgent.process_batch is deprecated for scoring. Use agents.scoring_runner.ScoringRunner."
+        )
         start_time = time.time()
         
         logger.info("="*60)

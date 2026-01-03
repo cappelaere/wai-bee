@@ -10,6 +10,7 @@ License: MIT
 """
 
 import logging
+import os
 from pathlib import Path
 from typing import Optional, List, Dict, Any
 from dataclasses import dataclass, field
@@ -20,10 +21,9 @@ from beeai_framework.workflows import Workflow
 
 from agents.attachment_agent.agent import AttachmentAgent
 from agents.application_agent.agent import ApplicationAgent
-from agents.recommendation_agent.agent import RecommendationAgent
-from agents.academic_agent.agent import AcademicAgent
-from agents.essay_agent.agent import EssayAgent
+from agents.scoring_runner import ScoringRunner
 from agents.summary_agent.agent import SummaryAgent
+from utils.preflight_check import run_preflight_check, PreflightResult
 
 
 class DefaultWorkflowSchema:
@@ -103,12 +103,12 @@ class ScholarshipProcessingWorkflow(Workflow):
     
     def _initialize_agents(self) -> None:
         """Initialize all processing agents."""
-        # Most agents don't take constructor parameters
+        # Preprocessing agents
         self.attachment_agent = AttachmentAgent()
-        self.application_agent = ApplicationAgent()
-        self.recommendation_agent = RecommendationAgent()
-        self.academic_agent = AcademicAgent()
-        self.essay_agent = EssayAgent()
+        self.application_agent = ApplicationAgent(self.scholarship_folder)
+
+        # Scoring runner (application/resume/essay/recommendation)
+        self.scoring_runner = ScoringRunner(self.scholarship_folder, self.outputs_dir)
         
         # Only SummaryAgent takes outputs_dir and scholarship_folder
         self.summary_agent = SummaryAgent(
@@ -142,6 +142,34 @@ class ScholarshipProcessingWorkflow(Workflow):
         try:
             result = func(*args, **kwargs)
             duration = time.time() - start_time
+
+            # Treat "no result" or explicit failure booleans as stage failures.
+            # Many of our agent entrypoints return Optional[...] or bool.
+            if result is None:
+                return StageResult(
+                    stage_name=stage_name,
+                    success=False,
+                    message=f"{stage_name} returned no result",
+                    error="Stage returned None",
+                    duration_seconds=duration,
+                )
+            if isinstance(result, bool) and result is False:
+                return StageResult(
+                    stage_name=stage_name,
+                    success=False,
+                    message=f"{stage_name} reported failure",
+                    error="Stage returned False",
+                    duration_seconds=duration,
+                )
+            if isinstance(result, dict) and result.get("success") is False:
+                return StageResult(
+                    stage_name=stage_name,
+                    success=False,
+                    message=f"{stage_name} failed",
+                    data=result,
+                    error=str(result.get("error") or "Stage returned success=false"),
+                    duration_seconds=duration,
+                )
             
             return StageResult(
                 stage_name=stage_name,
@@ -166,7 +194,10 @@ class ScholarshipProcessingWorkflow(Workflow):
         self,
         wai_number: str,
         skip_stages: Optional[List[str]] = None,
-        parallel: bool = True
+        parallel: bool = True,
+        model: str = "ollama/llama3.2:3b",
+        fallback_model: Optional[str] = "ollama/llama3:latest",
+        max_retries: int = 3,
     ) -> ApplicantResult:
         """Process a single applicant through all stages.
         
@@ -180,33 +211,36 @@ class ScholarshipProcessingWorkflow(Workflow):
             wai_number: WAI application number.
             skip_stages: Optional list of stage names to skip.
             parallel: If True, run analysis stages in parallel (default: True).
+            model: Primary LLM model to use (default: 'ollama/llama3.2:3b').
+            fallback_model: Optional fallback LLM model (default: 'ollama/llama3:latest').
+            max_retries: Maximum retry attempts for LLM calls (default: 3).
             
         Returns:
             ApplicantResult with all stage results.
         """
         import time
-        from concurrent.futures import ThreadPoolExecutor, as_completed
         
         self.logger.info("="*60)
         self.logger.info(f"Processing Applicant: {wai_number}")
-        self.logger.info(f"Parallel Mode: {parallel}")
         self.logger.info("="*60)
         
         skip_stages = skip_stages or []
         start_time = time.time()
         stages = []
         
-        # Determine scholarship folder path for agents
         scholarship_folder_str = str(self.scholarship_folder)
-        
-        # Stage 1: Analyze application (must be first to extract applicant info)
-        self.logger.info("Stage 1: Application analysis...")
-        if "application" not in skip_stages:
+
+        # Stage 1: Application extraction (must be first to extract applicant info)
+        self.logger.info("Stage 1: Application extraction...")
+        if "application_extract" not in skip_stages and "application" not in skip_stages:
             stage_result = self._run_stage(
-                "application",
+                "application_extract",
                 self.application_agent.analyze_application,
                 wai_number,
-                scholarship_folder_str
+                str(self.outputs_dir),
+                model,
+                fallback_model,
+                max_retries,
             )
             stages.append(stage_result)
             
@@ -228,61 +262,25 @@ class ScholarshipProcessingWorkflow(Workflow):
                 "attachments",
                 self.attachment_agent.process_single_wai,
                 wai_number,
-                scholarship_folder_str
+                scholarship_folder_str,
+                str(self.outputs_dir),
+                model,
+                fallback_model,
             )
             stages.append(stage_result)
         
-        # Stage 3: Parallel analysis (after attachments complete)
-        self.logger.info("Stage 3: Parallel analysis (Recommendations, Academic, Essays)...")
-        
-        analysis_tasks = []
-        
-        if "recommendations" not in skip_stages:
-            analysis_tasks.append(("recommendations",
-                                   self.recommendation_agent.analyze_recommendations,
-                                   wai_number,
-                                   scholarship_folder_str))
-        
-        if "academic" not in skip_stages:
-            analysis_tasks.append(("academic",
-                                   self.academic_agent.analyze_academic_profile,
-                                   wai_number,
-                                   scholarship_folder_str))
-        
-        if "essays" not in skip_stages:
-            # EssayAgent has a different signature - needs more parameters
-            analysis_tasks.append(("essays",
-                                   self._analyze_essays_wrapper,
-                                   wai_number))
-        
-        if parallel and analysis_tasks:
-            # Run analysis stages in parallel
-            with ThreadPoolExecutor(max_workers=3) as executor:
-                future_to_stage = {
-                    executor.submit(self._run_stage, name, func, *args): name
-                    for name, func, *args in analysis_tasks
-                }
-                
-                for future in as_completed(future_to_stage):
-                    stage_name = future_to_stage[future]
-                    try:
-                        stage_result = future.result()
-                        stages.append(stage_result)
-                        self.logger.info(f"  ✓ {stage_name} completed")
-                    except Exception as e:
-                        self.logger.error(f"  ✗ {stage_name} failed: {e}")
-                        stages.append(StageResult(
-                            stage_name=stage_name,
-                            success=False,
-                            message=f"{stage_name} failed",
-                            error=str(e),
-                            duration_seconds=0.0
-                        ))
-        else:
-            # Run analysis stages sequentially
-            for stage_name, func, *args in analysis_tasks:
-                stage_result = self._run_stage(stage_name, func, *args)
-                stages.append(stage_result)
+        # Stage 3: Scoring (after attachments complete)
+        self.logger.info("Stage 3: Scoring (Application, Resume, Essay, Recommendation)...")
+        if "scoring" not in skip_stages:
+            stage_result = self._run_stage(
+                "scoring",
+                self._run_scoring_stage,
+                wai_number,
+                model,
+                fallback_model,
+                max_retries,
+            )
+            stages.append(stage_result)
         
         total_duration = time.time() - start_time
         
@@ -300,6 +298,73 @@ class ScholarshipProcessingWorkflow(Workflow):
         self.logger.info(f"Success: {all_success}")
         
         return result
+
+    def _run_scoring_stage(
+        self,
+        wai_number: str,
+        model: str,
+        fallback_model: Optional[str],
+        max_retries: int,
+    ) -> Dict[str, Any]:
+        """Run all scoring agents for a single applicant via ScoringRunner."""
+        results = self.scoring_runner.run_for_wai(
+            wai_number=wai_number,
+            model=model,
+            fallback_model=fallback_model,
+            max_retries=max_retries,
+        )
+
+        # Convert dataclass results to plain dicts for JSON serialization
+        out: Dict[str, Any] = {}
+        for agent_name, res in results.items():
+            out[agent_name] = {
+                "success": res.success,
+                "output_path": str(res.output_path) if res.output_path else None,
+                "error": res.error,
+            }
+        return out
+    
+    def run_preflight_check(
+        self,
+        wai_numbers: Optional[List[str]] = None,
+        max_applicants: Optional[int] = None,
+        required_attachments: int = 5,
+    ) -> PreflightResult:
+        """Run preflight validation on applicant files before processing.
+        
+        Scans all applicant directories for:
+        - Missing primary application files
+        - Empty files (0 bytes)
+        - Corrupted PDFs (invalid headers)
+        
+        Args:
+            wai_numbers: Optional list of specific WAI numbers to check.
+            max_applicants: Optional maximum number of applicants to check.
+            required_attachments: Minimum attachment files expected (default: 5).
+            
+        Returns:
+            PreflightResult with validation results.
+        """
+        self.logger.info("="*60)
+        self.logger.info("Running Preflight Check")
+        self.logger.info("="*60)
+        
+        result = run_preflight_check(
+            scholarship_folder=self.scholarship_folder,
+            wai_numbers=wai_numbers,
+            max_applicants=max_applicants,
+            required_attachments=required_attachments,
+        )
+        
+        if result.has_errors:
+            self.logger.error(f"Preflight check found {result.error_count} errors")
+            for issue in result.issues:
+                if issue.severity == "error":
+                    self.logger.error(f"  {issue}")
+        else:
+            self.logger.info(f"Preflight check passed: {result.valid_applicants} valid applicants")
+        
+        return result
     
     def process_all_applicants(
         self,
@@ -307,7 +372,12 @@ class ScholarshipProcessingWorkflow(Workflow):
         skip_stages: Optional[List[str]] = None,
         max_applicants: Optional[int] = None,
         parallel: bool = True,
-        stop_on_error: bool = False
+        stop_on_error: bool = False,
+        model: str = "ollama/llama3.2:3b",
+        fallback_model: Optional[str] = "ollama/llama3:latest",
+        max_retries: int = 3,
+        preflight: bool = False,
+        preflight_strict: bool = False,
     ) -> Dict[str, Any]:
         """Process all applicants for the scholarship.
         
@@ -317,6 +387,11 @@ class ScholarshipProcessingWorkflow(Workflow):
             max_applicants: Optional maximum number of applicants to process.
             parallel: If True, run analysis stages in parallel (default: True).
             stop_on_error: If True, stop processing when an applicant fails (default: False).
+            model: Primary LLM model to use (default: 'ollama/llama3.2:3b').
+            fallback_model: Optional fallback LLM model (default: 'ollama/llama3:latest').
+            max_retries: Maximum retry attempts for LLM calls (default: 3).
+            preflight: If True, run preflight validation before processing (default: False).
+            preflight_strict: If True with preflight, abort if any errors found (default: False).
             
         Returns:
             Overall processing results dictionary.
@@ -338,6 +413,42 @@ class ScholarshipProcessingWorkflow(Workflow):
         
         self.logger.info(f"Found {len(wai_numbers)} applicants to process")
         
+        # Run preflight check if requested
+        preflight_result = None
+        if preflight:
+            preflight_result = self.run_preflight_check(
+                wai_numbers=wai_numbers,
+                max_applicants=None,  # Already limited above
+            )
+            
+            if preflight_result.has_errors:
+                if preflight_strict:
+                    self.logger.error("Preflight check failed in strict mode - aborting")
+                    return {
+                        "scholarship": self.scholarship_name,
+                        "start_time": datetime.now().isoformat(),
+                        "total_applicants": len(wai_numbers),
+                        "applicants": [],
+                        "successful": 0,
+                        "failed": 0,
+                        "aborted": True,
+                        "abort_reason": "Preflight check failed (strict mode)",
+                        "preflight": {
+                            "errors": preflight_result.error_count,
+                            "warnings": preflight_result.warning_count,
+                            "invalid_applicants": preflight_result.get_invalid_wai_numbers(),
+                        },
+                        "duration_seconds": time.time() - start_time,
+                    }
+                else:
+                    # Filter out invalid applicants
+                    invalid_wais = set(preflight_result.get_invalid_wai_numbers())
+                    original_count = len(wai_numbers)
+                    wai_numbers = [w for w in wai_numbers if w not in invalid_wais]
+                    self.logger.warning(
+                        f"Skipping {original_count - len(wai_numbers)} applicants with file errors"
+                    )
+        
         # Process each applicant
         results = {
             "scholarship": self.scholarship_name,
@@ -352,7 +463,14 @@ class ScholarshipProcessingWorkflow(Workflow):
         for i, wai_number in enumerate(wai_numbers, 1):
             self.logger.info(f"\nProcessing {i}/{len(wai_numbers)}: {wai_number}")
             
-            applicant_result = self.process_applicant(wai_number, skip_stages, parallel)
+            applicant_result = self.process_applicant(
+                wai_number=wai_number,
+                skip_stages=skip_stages,
+                parallel=parallel,
+                model=model,
+                fallback_model=fallback_model,
+                max_retries=max_retries,
+            )
             results["applicants"].append(applicant_result)
             
             if applicant_result.success:
@@ -459,28 +577,6 @@ class ScholarshipProcessingWorkflow(Workflow):
                 "error": str(e)
             }
     
-    def _analyze_essays_wrapper(self, wai_number: str) -> Optional[Any]:
-        """Wrapper for essay analysis to match workflow interface.
-        
-        Args:
-            wai_number: WAI application number.
-        
-        Returns:
-            EssayData if successful, None otherwise.
-        """
-        from pathlib import Path
-        
-        attachments_dir = self.outputs_dir / "attachments"
-        criteria_path = self.scholarship_folder / "criteria" / "essay_criteria.txt"
-        
-        return self.essay_agent.analyze_essays(
-            attachments_dir=attachments_dir,
-            scholarship_name=self.scholarship_name,
-            wai_number=wai_number,
-            criteria_path=criteria_path,
-            output_dir=self.outputs_dir
-        )
-    
     def get_workflow_status(self) -> Dict[str, Any]:
         """Get current workflow configuration and status.
         
@@ -492,18 +588,14 @@ class ScholarshipProcessingWorkflow(Workflow):
             "outputs_dir": str(self.outputs_dir),
             "agents": {
                 "attachment": "AttachmentAgent",
-                "application": "ApplicationAgent",
-                "recommendation": "RecommendationAgent",
-                "academic": "AcademicAgent",
-                "essay": "EssayAgent",
+                "application_extract": "ApplicationAgent",
+                "scoring": "ScoringRunner",
                 "summary": "SummaryAgent"
             },
             "available_stages": [
                 "attachments",
-                "application",
-                "recommendations",
-                "academic",
-                "essays",
+                "application_extract",
+                "scoring",
                 "summary"
             ]
         }

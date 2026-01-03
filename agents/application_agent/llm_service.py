@@ -1,6 +1,6 @@
 """LLM service for application processing.
 
-This module handles all LLM interactions for extracting and scoring applications.
+This module handles all LLM interactions for extracting applicant information.
 
 Author: Pat G Cappelaere, IBM Federal Consulting
 Created: 2025-12-07
@@ -11,14 +11,11 @@ License: MIT
 import json
 import logging
 from typing import Optional
-from pathlib import Path
 
 from litellm import completion
 
 from models.application_data import ApplicationData
-from utils.prompt_loader import load_analysis_prompt, load_repair_prompt, load_schema_path
-from utils.schema_validator import load_schema, extract_json_from_text
-from utils.llm_repair import validate_and_repair_once
+from utils.schema_validator import extract_json_from_text
 from .prompts import SYSTEM_PROMPT, get_extraction_prompt
 
 logger = logging.getLogger(__name__)
@@ -85,6 +82,33 @@ class LLMService:
             if not json_data:
                 logger.error("Failed to extract JSON from LLM response")
                 return None
+
+            def _norm_str(v) -> Optional[str]:
+                if v is None:
+                    return None
+                if isinstance(v, str):
+                    s = v.strip()
+                    return s if s else None
+                return str(v).strip() or None
+
+            def _split_name(full_name: Optional[str]) -> tuple[Optional[str], Optional[str]]:
+                if not full_name:
+                    return None, None
+                name = full_name.strip()
+                if not name or name == "Unknown":
+                    return None, None
+
+                # Handle "Last, First ..." format
+                if "," in name:
+                    last, rest = name.split(",", 1)
+                    last = last.strip() or None
+                    first = rest.strip().split(" ")[0] if rest.strip() else None
+                    return first, last
+
+                parts = [p for p in name.split() if p]
+                if len(parts) == 1:
+                    return parts[0], None
+                return parts[0], parts[-1]
             
             # Create ApplicationData object
             state_value = json_data.get('state')
@@ -93,10 +117,28 @@ class LLMService:
                 state_value = None
             elif state_value == 'Unknown':
                 state_value = 'Unknown'
+
+            first_name = _norm_str(json_data.get("first_name")) or None
+            last_name = _norm_str(json_data.get("last_name")) or None
+            full_name = _norm_str(json_data.get("name")) or "Unknown"
+
+            # If split names missing but full name present, derive them
+            if (not first_name or first_name == "Unknown") or (not last_name or last_name == "Unknown"):
+                derived_first, derived_last = _split_name(full_name)
+                if not first_name and derived_first:
+                    first_name = derived_first
+                if not last_name and derived_last:
+                    last_name = derived_last
+
+            # If full name missing but split present, construct it
+            if (not full_name or full_name == "Unknown") and first_name:
+                full_name = f"{first_name} {last_name}".strip() if last_name else first_name
             
             app_data = ApplicationData(
                 wai_number=wai_number,
-                name=json_data.get('name', 'Unknown'),
+                first_name=first_name,
+                last_name=last_name,
+                name=full_name,
                 city=json_data.get('city', 'Unknown'),
                 state=state_value,
                 country=json_data.get('country', 'Unknown'),
@@ -185,113 +227,9 @@ class LLMService:
         
         logger.error(f"Failed to extract information after all attempts")
         return None
-    
-    @staticmethod
-    def score_application(
-        app_data: ApplicationData,
-        scholarship_folder: Path,
-        wai_number: str,
-        output_dir: Path,
-        model: str,
-        max_retries: int
-    ) -> Optional[dict]:
-        """Score an application using the generated facet-based prompt/schema.
-        
-        Args:
-            app_data: Extracted application data.
-            scholarship_folder: Path to scholarship folder (contains agents.json).
-            wai_number: WAI application number.
-            output_dir: Base output directory.
-            model: LLM model to use for scoring.
-            max_retries: Maximum retry attempts.
-        
-        Returns:
-            Dict matching schemas_generated/application_analysis.schema.json, or None.
-        """
-        try:
-            analysis_prompt = load_analysis_prompt(scholarship_folder, "application")
-            if not analysis_prompt:
-                logger.error("No analysis prompt found for application agent")
-                return None
 
-            schema_path = load_schema_path(scholarship_folder, "application")
-            if not schema_path or not schema_path.exists():
-                logger.error(f"Application schema not found: {schema_path}")
-                return None
-            schema = load_schema(schema_path)
-            
-            # Get list of attachment files from the application data
-            # The attachment_files_checked field contains the actual file information
-            attachment_files = []
-            if hasattr(app_data, 'attachment_files_checked') and app_data.attachment_files_checked:
-                # Extract valid attachment file names
-                attachment_files = [
-                    f['name'] for f in app_data.attachment_files_checked
-                    if f.get('valid', False)
-                ]
-            
-            state_display = app_data.state if app_data.state else "N/A (non-US applicant)"
-            attachment_list = "\n".join(f"- {f}" for f in attachment_files) if attachment_files else "- None"
-            artifact_context = (
-                "APPLICATION DATA (extracted):\n"
-                f"- name: {app_data.name}\n"
-                f"- city: {app_data.city}\n"
-                f"- state: {state_display}\n"
-                f"- country: {app_data.country}\n"
-                "\n"
-                "ATTACHMENT FILES FOUND:\n"
-                f"{attachment_list}\n"
-            )
 
-            user_prompt = f"{analysis_prompt}\n\n---\n\n## Application Content\n\n{artifact_context}"
-            
-            # Call LLM with retry logic
-            for attempt in range(1, max_retries + 1):
-                try:
-                    if attempt > 1:
-                        logger.info(f"Scoring retry attempt {attempt}/{max_retries}")
-                    
-                    response = completion(
-                        model=model,
-                        messages=[
-                            {"role": "user", "content": user_prompt}
-                        ],
-                        temperature=0.1
-                    )
-                    
-                    response_text = response.choices[0].message.content or ""
-                    
-                    extracted = extract_json_from_text(response_text)
-                    if extracted is None:
-                        logger.warning(f"Failed to extract JSON from scoring response (attempt {attempt})")
-                        continue
-
-                    repair_template = load_repair_prompt(scholarship_folder, "application")
-                    is_valid, fixed_data, errors = validate_and_repair_once(
-                        data=extracted,
-                        schema=schema,
-                        repair_template=repair_template,
-                        model=model,
-                        system_prompt=None,
-                        local_fix_attempts=3,
-                        repair_max_tokens=3000,
-                    )
-                    if is_valid:
-                        return fixed_data
-
-                    logger.warning(f"Schema validation failed: {len(errors)} errors")
-                    
-                except Exception:
-                    logger.exception(f"Scoring attempt {attempt} failed for WAI {wai_number}")
-                    if attempt == max_retries:
-                        logger.error(f"All scoring attempts failed for WAI {wai_number}")
-                        return None
-            
-            return None
-            
-        except Exception:
-            logger.exception(f"Error scoring application for WAI {wai_number}")
-            return None
+# Note: Application scoring is now handled by `agents.scoring_runner.ScoringRunner`.
 
 
 # Made with Bob

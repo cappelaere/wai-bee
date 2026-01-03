@@ -29,9 +29,10 @@ Attributes:
 """
 
 import logging
+import os
 import time
 from pathlib import Path
-from typing import Optional
+from typing import Optional, Callable
 
 from models.attachment_data import AttachmentData, AttachmentResult
 from utils.folder_scanner import scan_scholarship_folder, get_wai_number
@@ -40,11 +41,16 @@ from utils.attachment_scanner import (
     get_attachment_output_path,
     is_attachment_processed
 )
-from utils.document_parser import parse_document, get_converter
+from utils.document_parser import (
+    parse_document,
+    get_converter,
+    parse_document_markdown,
+    get_markitdown_converter,
+)
 from utils.pii_remover import remove_pii_with_retry
 from utils.text_writer import save_redacted_text, create_processing_summary
 
-logger = logging.getLogger()
+logger = logging.getLogger(__name__)
 
 
 class AttachmentAgent:
@@ -77,11 +83,31 @@ class AttachmentAgent:
         """Initialize the Attachment Agent.
         
         Creates a new instance of the AttachmentAgent and initializes the
-        DocumentConverter for efficient reuse across multiple documents.
+        document converter for efficient reuse across multiple documents.
+
+        Parsing backend:
+            - Default: Docling (`docling.document_converter.DocumentConverter`)
+            - Optional: MarkItDown (set `ATTACHMENT_MARKDOWN_PARSER=true` or `MARKDOWN_PARSER=true`)
         """
-        # Initialize the document converter once for reuse
-        self.converter = get_converter()
-        logger.info("Attachment Agent initialized with DocumentConverter")
+        # Optional backend selection:
+        # - Prefer explicit ATTACHMENT_MARKDOWN_PARSER if set
+        # - Otherwise fall back to the global MARKDOWN_PARSER flag used elsewhere
+        use_markdown = os.getenv("ATTACHMENT_MARKDOWN_PARSER")
+        if use_markdown is None:
+            use_markdown = os.getenv("MARKDOWN_PARSER", "false")
+
+        self.use_markdown_parser = str(use_markdown).lower() == "true"
+        self._parse_fn: Callable[[Path], Optional[str]]
+
+        if self.use_markdown_parser:
+            self.md_converter = get_markitdown_converter()
+            self._parse_fn = lambda p: parse_document_markdown(p, self.md_converter)
+            logger.info("Attachment Agent initialized with MarkItDown converter (MARKDOWN_PARSER enabled)")
+        else:
+            # Initialize the Docling document converter once for reuse
+            self.converter = get_converter()
+            self._parse_fn = lambda p: parse_document(p, self.converter)
+            logger.info("Attachment Agent initialized with Docling DocumentConverter")
     
     def process_single_wai(
         self,
@@ -401,7 +427,7 @@ class AttachmentAgent:
         # Parse document
         logger.debug(f"  Parsing document: {attachment_file.name}")
         try:
-            document_text = parse_document(attachment_file, self.converter)
+            document_text = self._parse_fn(attachment_file)
             
             if not document_text:
                 error_msg = f"Failed to parse document (no text extracted): {attachment_file.name}"
@@ -489,7 +515,8 @@ class AttachmentAgent:
             else:
                 # File already exists and overwrite=False
                 logger.info(f"  File already exists, skipping save: {output_path.name}")
-                return None
+                # Treat as success: downstream agents can still read the existing txt.
+                return metadata
         except Exception as e:
             error_msg = f"Failed to save redacted text: {str(e)}"
             logger.error(f"  {error_msg}")

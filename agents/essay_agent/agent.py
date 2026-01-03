@@ -95,6 +95,10 @@ class EssayAgent:
         Returns:
             EssayData object with analysis results, or None if processing fails.
         """
+        raise RuntimeError(
+            "EssayAgent is deprecated for scoring. Use agents.scoring_runner.ScoringRunner "
+            "to run config-driven scoring for 'essay' (saved to essay_analysis.json)."
+        )
         start_time = time.time()
         self.logger.info(f"Starting essay analysis for WAI {wai_number}")
         
@@ -308,6 +312,9 @@ class EssayAgent:
         Returns:
             Dictionary with processing statistics.
         """
+        raise RuntimeError(
+            "EssayAgent.process_batch is deprecated for scoring. Use agents.scoring_runner.ScoringRunner."
+        )
         start_time = time.time()
         
         total = len(wai_numbers)

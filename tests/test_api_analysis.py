@@ -55,9 +55,9 @@ def test_get_application_analysis_invalid(test_client, invalid_wai_number):
     assert "detail" in data
 
 
-def test_get_academic_analysis_valid(test_client, sample_wai_number):
-    """Test getting academic analysis for a valid WAI number."""
-    response = test_client.get(f"/academic/{sample_wai_number}")
+def test_get_resume_analysis_valid(test_client, sample_wai_number):
+    """Test getting resume analysis for a valid WAI number."""
+    response = test_client.get(f"/resume/{sample_wai_number}")
     
     # Academic analysis may not exist for all applications
     if response.status_code == 200:

@@ -136,12 +136,12 @@ def get_resume_output_path(
         >>> output_base = Path("outputs")
         >>> path = get_resume_output_path(output_base, "Delaney_Wings", "75179")
         >>> print(path)
-        outputs/Delaney_Wings/75179/academic_analysis.json
+        outputs/Delaney_Wings/75179/resume_analysis.json
     
     Note:
         Does not create the directory - that's done when saving the file.
     """
-    return output_base / scholarship_name / wai_number / "academic_analysis.json"
+    return output_base / scholarship_name / wai_number / "resume_analysis.json"
 
 
 def is_resume_processed(output_path: Path) -> bool:
@@ -154,7 +154,7 @@ def is_resume_processed(output_path: Path) -> bool:
         True if file exists, False otherwise.
     
     Example:
-        >>> output_path = Path("outputs/academic/Delaney_Wings/75179/academic_analysis.json")
+        >>> output_path = Path("outputs/resume/Delaney_Wings/75179/resume_analysis.json")
         >>> if is_resume_processed(output_path):
         ...     print("Already processed")
     """

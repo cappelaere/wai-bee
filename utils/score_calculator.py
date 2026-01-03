@@ -77,35 +77,28 @@ def load_weights(scholarship_folder: Path) -> dict:
 
 
 def calculate_final_score(
-    application_score: Optional[int] = None,
-    recommendation_score: Optional[int] = None,
-    academic_score: Optional[int] = None,
-    essay_score: Optional[int] = None,
+    application_score: Optional[float] = None,
+    recommendation_score: Optional[float] = None,
+    resume_score: Optional[float] = None,
+    essay_score: Optional[float] = None,
     weights_config: Optional[dict] = None
 ) -> dict:
-    """Calculate weighted final score from agent scores.
+    """Calculate final score from weighted agent scores.
     
     Args:
-        application_score: Application agent overall score (0-100).
-        recommendation_score: Recommendation agent overall score (0-100).
-        academic_score: Academic agent overall score (0-100).
-        essay_score: Essay agent overall score (0-100).
+        application_score: Application agent weighted score.
+        recommendation_score: Recommendation agent weighted score.
+        resume_score: Resume agent weighted score.
+        essay_score: Essay agent weighted score.
         weights_config: Weights configuration dictionary.
         
     Returns:
         Dictionary with final score and breakdown.
         
-    Example:
-        >>> weights = load_weights(Path("data/Delaney_Wings"))
-        >>> result = calculate_final_score(
-        ...     application_score=85,
-        ...     recommendation_score=90,
-        ...     academic_score=88,
-        ...     essay_score=92,
-        ...     weights_config=weights
-        ... )
-        >>> print(result['final_score'])
-        89.1
+    Note:
+        If scores are pre-weighted (weighted_score from analysis files),
+        the final score is their sum. If scores are raw overall_scores,
+        they will be weighted by the config weights.
     """
     logger = logging.getLogger()
     
@@ -118,47 +111,38 @@ def calculate_final_score(
     scores = {
         'application': application_score,
         'recommendation': recommendation_score,
-        'academic': academic_score,
+        'resume': resume_score,
         'essay': essay_score
     }
     
-    # Calculate weighted score
+    # Calculate final score (sum of weighted scores)
     weighted_sum = 0.0
-    total_weight = 0.0
     breakdown = {}
     missing_agents = []
     
-    for agent_name, score in scores.items():
-        if score is not None:
-            weight = weights[agent_name]['weight']
-            contribution = score * weight
-            weighted_sum += contribution
-            total_weight += weight
-            breakdown[agent_name] = {
-                'score': score,
-                'weight': weight,
-                'contribution': round(contribution, 2)
-            }
-        else:
+    for agent_name, meta in weights.items():
+        score = scores.get(agent_name)
+        if score is None:
             missing_agents.append(agent_name)
+            continue
+
+        weighted_sum += float(score)
+        breakdown[agent_name] = {
+            'weighted_score': round(float(score), 2),
+            'weight': meta['weight'],
+        }
     
-    # Calculate final score
-    if total_weight > 0:
-        final_score = round(weighted_sum / total_weight * (1.0 / total_weight), 2)
-    else:
-        final_score = 0.0
+    final_score = round(weighted_sum, 2)
     
     result = {
-        'final_score': round(weighted_sum, 2),
+        'final_score': final_score,
         'breakdown': breakdown,
-        'total_weight_used': round(total_weight, 2),
         'missing_agents': missing_agents,
         'complete': len(missing_agents) == 0
     }
     
     if missing_agents:
         logger.warning(f"Missing scores for: {', '.join(missing_agents)}")
-        logger.info(f"Final score calculated using {total_weight:.2f} of total weight")
     else:
         logger.info(f"Final score: {result['final_score']:.2f} (all agents complete)")
     
@@ -194,28 +178,68 @@ def load_agent_scores(
     scores = {
         'application': None,
         'recommendation': None,
-        'academic': None,
+        'resume': None,
         'essay': None
     }
     
     # All agent outputs should be in outputs/<scholarship>/<WAI>/
     wai_output_dir = outputs_dir / scholarship_name / wai_number
     
-    # Load application score from analysis file
-    app_analysis_file = wai_output_dir / "application_analysis.json"
-    if app_analysis_file.exists():
+    def extract_score(data: dict) -> dict:
+        """Extract scores from analysis data, checking multiple formats.
+        
+        Returns dict with 'overall_score', 'weight', and 'weighted_score'.
+        """
+        result = {
+            'overall_score': None,
+            'weight': None,
+            'weighted_score': None,
+        }
+        
+        # 1. Check for new format with explicit fields
+        if 'overall_score' in data:
+            try:
+                result['overall_score'] = int(data['overall_score'])
+            except (ValueError, TypeError):
+                pass
+        
+        if 'weight' in data:
+            try:
+                result['weight'] = float(data['weight'])
+            except (ValueError, TypeError):
+                pass
+        
+        if 'weighted_score' in data:
+            try:
+                result['weighted_score'] = float(data['weighted_score'])
+            except (ValueError, TypeError):
+                pass
+        
+        # 2. Check for legacy scores.overall_score format
+        if result['overall_score'] is None and 'scores' in data:
+            try:
+                result['overall_score'] = int(data['scores'].get('overall_score', 0))
+            except (ValueError, TypeError):
+                pass
+        
+        # 3. Compute from facets as fallback
+        if result['overall_score'] is None and 'facets' in data:
+            facet_scores = [
+                int(f.get('score', 0)) for f in (data.get('facets') or [])
+                if isinstance(f, dict) and 'score' in f
+            ]
+            if facet_scores:
+                result['overall_score'] = sum(facet_scores)
+        
+        return result
+    
+    # Load application score
+    app_file = wai_output_dir / "application_analysis.json"
+    if app_file.exists():
         try:
-            with open(app_analysis_file, 'r') as f:
-                data = json.load(f)
-                if 'scores' in data:
-                    scores['application'] = data.get('scores', {}).get('overall_score')
-                elif 'facets' in data:
-                    facet_scores = [
-                        int(f.get('score', 0)) for f in (data.get('facets') or [])
-                        if isinstance(f, dict)
-                    ]
-                    if facet_scores:
-                        scores['application'] = round(sum(facet_scores) / len(facet_scores), 2)
+            with open(app_file, 'r') as f:
+                score_data = extract_score(json.load(f))
+                scores['application'] = score_data['weighted_score'] or score_data['overall_score']
         except Exception as e:
             logger.warning(f"Error loading application score: {e}")
     
@@ -224,28 +248,28 @@ def load_agent_scores(
     if rec_file.exists():
         try:
             with open(rec_file, 'r') as f:
-                data = json.load(f)
-                scores['recommendation'] = data.get('scores', {}).get('overall_score')
+                score_data = extract_score(json.load(f))
+                scores['recommendation'] = score_data['weighted_score'] or score_data['overall_score']
         except Exception as e:
             logger.warning(f"Error loading recommendation score: {e}")
     
-    # Load academic score
-    acad_file = wai_output_dir / "academic_analysis.json"
-    if acad_file.exists():
+    # Load resume score
+    resume_file = wai_output_dir / "resume_analysis.json"
+    if resume_file.exists():
         try:
-            with open(acad_file, 'r') as f:
-                data = json.load(f)
-                scores['academic'] = data.get('scores', {}).get('overall_score')
+            with open(resume_file, 'r') as f:
+                score_data = extract_score(json.load(f))
+                scores['resume'] = score_data['weighted_score'] or score_data['overall_score']
         except Exception as e:
-            logger.warning(f"Error loading academic score: {e}")
+            logger.warning(f"Error loading resume score: {e}")
     
     # Load essay score
     essay_file = wai_output_dir / "essay_analysis.json"
     if essay_file.exists():
         try:
             with open(essay_file, 'r') as f:
-                data = json.load(f)
-                scores['essay'] = data.get('scores', {}).get('overall_score')
+                score_data = extract_score(json.load(f))
+                scores['essay'] = score_data['weighted_score'] or score_data['overall_score']
         except Exception as e:
             logger.warning(f"Error loading essay score: {e}")
     
@@ -291,7 +315,7 @@ def calculate_wai_final_score(
     result = calculate_final_score(
         application_score=scores['application'],
         recommendation_score=scores['recommendation'],
-        academic_score=scores['academic'],
+        resume_score=scores['resume'],
         essay_score=scores['essay'],
         weights_config=weights_config
     )

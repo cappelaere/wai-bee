@@ -1,6 +1,6 @@
-# Scoring Agent Architecture
+# Scoring Runner Architecture
 
-This document describes the shared patterns and architecture used by the four scoring agents (Application, Resume, Essay, Recommendation).
+This document describes the shared patterns and architecture used by the **generic schema-driven scoring runner** (`agents/scoring_runner.py`) for the four scoring artifacts (Application, Resume, Essay, Recommendation).
 
 ## Overview
 
@@ -41,14 +41,18 @@ All scoring agents follow the same lifecycle:
 
 ---
 
-## Agents
+## Scoring Artifacts
 
-| Agent | Module | Artifact Evaluated | Output File |
-|-------|--------|-------------------|-------------|
-| Application | `agents/application_agent/` | Application form | `application_analysis.json` |
-| Resume (Academic) | `agents/academic_agent/` | Resume/CV | `resume_analysis.json` |
-| Essay | `agents/essay_agent/` | Personal essays | `essay_analysis.json` |
-| Recommendation | `agents/recommendation_agent/` | Recommendation letters | `recommendation_analysis.json` |
+The runner produces one schema-validated JSON output per artifact:
+
+| Artifact | Config name | Output File |
+|---------|-------------|-------------|
+| Application | `application` | `application_analysis.json` |
+| Resume | `resume` | `resume_analysis.json` |
+| Essay | `essay` | `essay_analysis.json` |
+| Recommendation | `recommendation` | `recommendation_analysis.json` |
+
+Note: Legacy per-agent scoring classes still exist in `agents/*_agent/` but are deprecated for scoring (they direct callers to `ScoringRunner`).
 
 ---
 

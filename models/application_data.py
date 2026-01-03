@@ -65,6 +65,10 @@ class ApplicationData(BaseModel):
     """
     
     wai_number: str = Field(..., description="WAI number of the applicant")
+    # New: split name fields (preferred for downstream reporting/normalization).
+    # Backward-compatible: older application_data.json files may not include these.
+    first_name: Optional[str] = Field(default=None, description="Applicant first name")
+    last_name: Optional[str] = Field(default=None, description="Applicant last name")
     name: str = Field(..., description="Full name of the applicant")
     city: str = Field(..., description="City of residence")
     state: Optional[str] = Field(default=None, description="State of residence (for US applicants)")
@@ -91,9 +95,14 @@ class ApplicationData(BaseModel):
         """
         errors = []
         
-        # Check name
-        if not self.name or self.name.strip() == "" or self.name == "Unknown":
-            errors.append("Name is missing or Unknown")
+        # Check name fields
+        has_full_name = bool(self.name and self.name.strip() and self.name != "Unknown")
+        has_split_name = bool(
+            self.first_name and self.first_name.strip() and self.first_name != "Unknown"
+            and self.last_name and self.last_name.strip() and self.last_name != "Unknown"
+        )
+        if not has_full_name and not has_split_name:
+            errors.append("Applicant name is missing or Unknown (need name or first_name+last_name)")
         
         # Check city
         if not self.city or self.city.strip() == "" or self.city == "Unknown":

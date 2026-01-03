@@ -14,9 +14,6 @@ import logging
 from typing import Tuple, List, Optional
 import re
 
-# Suppress Presidio warnings about non-English recognizers before import
-logging.getLogger('presidio-analyzer').setLevel(logging.ERROR)
-
 from presidio_analyzer import AnalyzerEngine, EntityRecognizer, RecognizerResult
 from presidio_anonymizer import AnonymizerEngine
 from presidio_anonymizer.entities import OperatorConfig
@@ -129,12 +126,14 @@ def get_analyzer() -> AnalyzerEngine:
     """Get or create the Presidio analyzer instance with custom recognizers.
     
     Returns:
-        AnalyzerEngine: Singleton analyzer instance with international phone support.
+        AnalyzerEngine: Singleton analyzer instance with English-only support
+            and international phone number detection.
     """
     global _analyzer
     if _analyzer is None:
-        logger.info("Initializing Presidio AnalyzerEngine (one-time setup)")
-        _analyzer = AnalyzerEngine()
+        logger.info("Initializing Presidio AnalyzerEngine (English-only, one-time setup)")
+        # Configure for English-only to avoid loading Spanish, Italian, Polish recognizers
+        _analyzer = AnalyzerEngine(supported_languages=["en"])
         
         # Add custom international phone recognizer
         international_phone_recognizer = InternationalPhoneRecognizer()

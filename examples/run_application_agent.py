@@ -1,12 +1,13 @@
-"""
-Example script for running the Application Agent.
+"""Example script for running application extraction.
 
-This script demonstrates how to use the Application Agent to process
-scholarship applications and extract applicant information.
+This script demonstrates how to use the ApplicationAgent to extract applicant
+fields from the main application PDF and write `application_data.json`.
+
+Note: Scoring is now handled by `agents.scoring_runner.ScoringRunner`.
 """
 
-import os
 import sys
+import argparse
 from pathlib import Path
 
 # Add parent directory to path to import modules
@@ -16,37 +17,37 @@ from agents.application_agent import ApplicationAgent
 
 
 def main():
-    """Run the Application Agent on Delaney Wings scholarship applications."""
+    """Run the Application Agent (extraction only)."""
       
-    # Initialize the agent
+    parser = argparse.ArgumentParser(description="Run application extraction for a single applicant.")
+    parser.add_argument("--scholarship", default="Delaney_Wings", help="Scholarship folder name under data/")
+    parser.add_argument("--wai", default="75179", help="WAI applicant folder name (e.g., 75179)")
+    parser.add_argument("--outputs-dir", default="outputs", help="Outputs base directory")
+    parser.add_argument("--model", default="ollama/llama3.2:3b", help="Primary LLM model")
+    parser.add_argument("--fallback-model", default="ollama/llama3:latest", help="Fallback LLM model")
+    parser.add_argument("--max-retries", type=int, default=3, help="Max extraction retries")
+    args = parser.parse_args()
+
+    scholarship_folder = Path("data") / args.scholarship
+    wai_number = args.wai
+    outputs_dir = args.outputs_dir
+
     print("Initializing Application Agent...")
-    agent = ApplicationAgent()
-    
-    # Define the scholarship folder path
-    scholarship_folder = "data/Delaney_Wings/Applications"
-    
-    # Process applications
-    # Set max_applications to limit the number processed (useful for testing)
-    print(f"\nProcessing applications from: {scholarship_folder}")
+    agent = ApplicationAgent(scholarship_folder)
+
+    print(f"\nExtracting application for: {scholarship_folder.name} / {wai_number}")
     print("=" * 60)
-    
-    # result = agent.process_applications(
-    #     scholarship_folder=scholarship_folder,
-    #     max_applications=2,  # Process first 5 applications (remove or set to None for all)
-    #     skip_processed=False,  # Skip applications that already have JSON output
-    #     overwrite=True,  # Don't overwrite existing JSON files
-    #     model="ollama/llama3.2:3b",  # Primary model to use
-    #     fallback_model="ollama/llama3:latest",  # Fallback model if primary fails (optional)
-    #     max_retries=3  # Number of retry attempts per model (default: 3)
-    # )
+
     result = agent.analyze_application(
-        wai_number="75179",
-        scholarship_folder="data/Delaney_Wings",
-        output_dir="outputs"
+        wai_number=wai_number,
+        output_dir=outputs_dir,
+        model=args.model,
+        fallback_model=args.fallback_model,
+        max_retries=args.max_retries,
     )
     # Print summary
     print("\n" + "=" * 60)
-    print("PROCESSING SUMMARY")
+    print("EXTRACTION SUMMARY")
     print("=" * 60)
    
     print(f"result: {result}")

@@ -14,6 +14,7 @@ Usage:
 
 import logging
 import sys
+import argparse
 from pathlib import Path
 
 # Add parent directory to path for imports
@@ -40,9 +41,14 @@ def main():
     logger.info("Summary Agent Example")
     logger.info("="*60)
     
+    parser = argparse.ArgumentParser(description="Generate summary CSV/statistics for a scholarship.")
+    parser.add_argument("--scholarship", default="Delaney_Wings", help="Scholarship folder name under data/")
+    parser.add_argument("--outputs-dir", default="outputs", help="Outputs base directory")
+    args = parser.parse_args()
+
     # Configuration
-    outputs_dir = Path("outputs")
-    scholarship_folder = Path("data/Delaney_Wings")
+    outputs_dir = Path(args.outputs_dir)
+    scholarship_folder = Path("data") / args.scholarship
     scholarship_name = scholarship_folder.name
     
     # Output files in scholarship folder

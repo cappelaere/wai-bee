@@ -25,7 +25,9 @@ Example:
 SYSTEM_PROMPT = """You are an expert at extracting information from scholarship application documents.
 
 Your task is to carefully read the application document and extract the following information:
-1. Applicant's full name
+1. Applicant's first name
+2. Applicant's last name
+3. Applicant's full name (optional but recommended)
 2. City of residence
 3. State of residence (for US applicants only)
 4. Country of residence
@@ -43,14 +45,16 @@ IMPORTANT - Standardization Requirements:
 - Look for sections like "Personal Information", "Contact Details", "Applicant Information", etc.
 """
 
-USER_PROMPT_TEMPLATE = """Please extract the applicant's name, city, state (if in US), and country from the following scholarship application document.
+USER_PROMPT_TEMPLATE = """Please extract the applicant's first name, last name, city, state (if in US), and country from the following scholarship application document.
 
 Document content:
 {document_text}
 
 Provide the extracted information in the following JSON format:
 {{
-  "name": "Full Name",
+  "first_name": "First Name",
+  "last_name": "Last Name",
+  "name": "Full Name (optional but recommended)",
   "city": "City Name",
   "state": "Two-letter state code or null",
   "country": "Official English Country Name"
@@ -86,4 +90,11 @@ def get_extraction_prompt(document_text: str) -> str:
         True
     """
     return USER_PROMPT_TEMPLATE.format(document_text=document_text)
-\n+# Note:\n+# Application scoring prompts are generated per-scholarship in data/<scholarship>/prompts/\n+# and loaded via utils.prompt_loader. This module is now extraction-only.\n+\n+\n+# Made with Bob
+
+
+# Note:
+# Application scoring prompts are generated per-scholarship in data/<scholarship>/prompts/
+# and loaded via utils.prompt_loader. This module is now extraction-only.
+
+
+# Made with Bob

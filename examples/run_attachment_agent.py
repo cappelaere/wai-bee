@@ -6,6 +6,7 @@ scholarship application attachments, remove PII, and save redacted text files.
 """
 
 import sys
+import argparse
 from pathlib import Path
 
 # Add parent directory to path to import modules
@@ -25,25 +26,37 @@ def main():
     print("  ollama pull llama3.2:1b")
     print("  ollama pull llama3:latest  # Optional fallback model\n")
     
+    parser = argparse.ArgumentParser(description="Run attachment preprocessing for a scholarship.")
+    parser.add_argument("--scholarship", default="Delaney_Wings", help="Scholarship folder name under data/")
+    parser.add_argument("--outputs-dir", default="outputs", help="Outputs base directory")
+    parser.add_argument("--model", default="ollama/llama3.2:1b", help="Primary LLM model for PII removal")
+    parser.add_argument("--fallback-model", default="ollama/llama3:latest", help="Fallback LLM model")
+    parser.add_argument("--max-wai-folders", type=int, default=5, help="Process first N WAI folders")
+    parser.add_argument("--max-files-per-folder", type=int, default=5, help="Max attachments per WAI")
+    parser.add_argument("--skip-processed", action="store_true", help="Skip WAI folders already processed")
+    parser.add_argument("--overwrite", action="store_true", help="Overwrite existing outputs")
+    args = parser.parse_args()
+
     # Initialize the agent
     print("Initializing Attachment Agent...")
     agent = AttachmentAgent()
-    
-    # Define the scholarship folder path
-    scholarship_folder = "data/Delaney_Wings/Applications"
+
+    scholarship_base = Path("data") / args.scholarship
+    applications_dir = scholarship_base / "Applications"
     
     # Process attachments
-    print(f"\nProcessing attachments from: {scholarship_folder}")
+    print(f"\nProcessing attachments from: {applications_dir}")
     print("=" * 60)
     
     result = agent.process_attachments(
-        scholarship_folder=scholarship_folder,
-        max_wai_folders=5,         # Process first 5 WAI folders (remove or set to None for all)
-        max_files_per_folder=5,    # Process first 5 attachments per folder
-        skip_processed=True,       # Skip attachments that already have .txt output
-        overwrite=False,           # Don't overwrite existing .txt files
-        model="ollama/llama3.2:1b",  # Primary model for PII removal
-        fallback_model="ollama/llama3:latest"  # Fallback model if primary fails (optional)
+        scholarship_folder=str(applications_dir),
+        max_wai_folders=args.max_wai_folders,
+        max_files_per_folder=args.max_files_per_folder,
+        skip_processed=args.skip_processed,
+        overwrite=args.overwrite,
+        model=args.model,
+        fallback_model=args.fallback_model,
+        output_dir=args.outputs_dir,
     )
     
     # Print summary
@@ -69,8 +82,8 @@ def main():
                 print(f"    File: {error.source_file}")
     
     print("\nDone! Check the outputs folder for generated .txt files.")
-    print("Example: outputs/attachments/Delaney_Wings/75179/75179_19_1.txt")
-    print("\nEach WAI folder also contains a _processing_summary.txt file with statistics.")
+    print(f"Example: {args.outputs_dir}/{args.scholarship}/<wai>/attachments/<file>.txt")
+    print("\nEach WAI folder also contains a _processing_summary.json file with statistics.")
 
 
 if __name__ == "__main__":

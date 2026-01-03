@@ -50,10 +50,10 @@
 - **Applicants Scored:** {{recommendation_count}}
 - **Average Score:** {{recommendation_mean}}
 
-### Academic Agent (Weight: {{weight_academic}}%)
+### Resume Agent (Weight: {{weight_resume}}%)
 
-- **Applicants Scored:** {{academic_count}}
-- **Average Score:** {{academic_mean}}
+- **Applicants Scored:** {{resume_count}}
+- **Average Score:** {{resume_mean}}
 
 ### Essay Agent (Weight: {{weight_essay}}%)
 

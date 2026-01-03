@@ -127,6 +127,10 @@ class AcademicAgent:
         Returns:
             AcademicData if successful, None otherwise.
         """
+        raise RuntimeError(
+            "AcademicAgent is deprecated for scoring. Use agents.scoring_runner.ScoringRunner "
+            "to run config-driven scoring for 'resume' (saved to resume_analysis.json)."
+        )
         # Load analysis prompt from agents.json config (resume artifact)
         analysis_prompt = load_analysis_prompt(self.scholarship_folder, "resume")
         if not analysis_prompt:
@@ -164,6 +168,9 @@ class AcademicAgent:
         Returns:
             ProcessingResult with statistics and errors.
         """
+        raise RuntimeError(
+            "AcademicAgent.process_batch is deprecated for scoring. Use agents.scoring_runner.ScoringRunner."
+        )
         start_time = time.time()
         
         logger.info("="*60)

@@ -1,6 +1,9 @@
-"""Run Recommendation Agent for a single WAI folder.
+"""Run a single scoring artifact for one WAI applicant.
 
-This script processes a single WAI folder for testing purposes.
+This script is a lightweight testing harness:
+- Ensure application extraction exists (application_data.json)
+- Ensure attachments exist (outputs/<scholarship>/<wai>/attachments/*.txt)
+- Run ScoringRunner for one scoring artifact (default: recommendation)
 
 Author: Pat G Cappelaere, IBM Federal Consulting
 Created: 2025-12-05
@@ -10,12 +13,15 @@ License: MIT
 
 import logging
 import sys
+import argparse
 from pathlib import Path
 
 # Add parent directory to path for imports
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from agents.recommendation_agent import RecommendationAgent
+from agents.application_agent import ApplicationAgent
+from agents.attachment_agent import AttachmentAgent
+from agents.scoring_runner import ScoringRunner
 
 # Configure logging
 logging.basicConfig(
@@ -28,114 +34,80 @@ logger = logging.getLogger()
 
 
 def main():
-    """Run the Recommendation Agent for a single WAI folder."""
+    """Run a single scoring artifact for one applicant."""
     
     print("\n" + "="*60)
-    print("Recommendation Agent - Single WAI Processing")
+    print("Single Applicant - Single Artifact Scoring")
     print("="*60)
     
-    # Initialize agent
-    print("\nInitializing Recommendation Agent...")
-    agent = RecommendationAgent()
-    
-    # Configuration for single WAI
-    wai_number = "77747"
-    scholarship_folder = Path("data/Delaney_Wings/Applications")
-    model = "ollama/llama3.2:3b"
-    fallback_model = "ollama/llama3:latest"
-    min_files = 2
-    max_retries = 3
+    parser = argparse.ArgumentParser(description="Run a single scoring artifact for one applicant.")
+    parser.add_argument("--scholarship", default="Delaney_Wings", help="Scholarship folder name under data/")
+    parser.add_argument("--wai", default="75179", help="WAI applicant folder name (e.g., 75179)")
+    parser.add_argument(
+        "--agent",
+        default="recommendation",
+        choices=["application", "resume", "essay", "recommendation"],
+        help="Which scoring artifact to run",
+    )
+    parser.add_argument("--outputs-dir", default="outputs", help="Outputs base directory")
+    parser.add_argument("--model", default="ollama/llama3.2:3b", help="Primary LLM model")
+    parser.add_argument("--fallback-model", default="ollama/llama3:latest", help="Fallback LLM model")
+    parser.add_argument("--max-retries", type=int, default=3, help="Max scoring retries")
+    args = parser.parse_args()
+
+    wai_number = args.wai
+    scholarship_folder = Path("data") / args.scholarship
+    outputs_dir = Path(args.outputs_dir)
+    agent_name = args.agent
+    model = args.model
+    fallback_model = args.fallback_model
+    max_retries = args.max_retries
     
     print(f"\nProcessing WAI: {wai_number}")
     print(f"Scholarship folder: {scholarship_folder}")
     print(f"Model: {model}")
     print("="*60)
-    
-    # Import utilities
-    from utils.recommendation_scanner import (
-        find_recommendation_files,
-        read_recommendation_text,
-        get_recommendation_output_path,
-        validate_recommendation_files,
-        get_scholarship_name_from_path
-    )
-    from utils.criteria_loader import load_criteria
-    
-    # Get scholarship name
-    scholarship_name = get_scholarship_name_from_path(scholarship_folder)
-    print(f"\nScholarship: {scholarship_name}")
-    
-    # Find recommendation files in unified output structure
-    output_base = Path("outputs")
-    rec_files = find_recommendation_files(
-        output_base,
-        scholarship_name,
-        wai_number,
-        max_files=2
-    )
-    
-    # Validate files
-    is_valid, error_msg = validate_recommendation_files(rec_files, min_files)
-    if not is_valid:
-        print(f"\nError: {error_msg}")
-        return
-    
-    print(f"\nFound {len(rec_files)} recommendation files:")
-    for f in rec_files:
-        print(f"  - {f.name}")
-    
-    # Load criteria
-    criteria = load_criteria(scholarship_folder, "recommendation")
-    print(f"\nLoaded criteria ({len(criteria)} characters)")
-    
-    # Get criteria path for metadata
-    if scholarship_folder.name == "Applications":
-        criteria_folder = scholarship_folder.parent
-    else:
-        criteria_folder = scholarship_folder
-    criteria_path = str(criteria_folder / "criteria" / "recommendation_criteria.txt")
-    
-    # Process with agent's internal method
-    print(f"\nAnalyzing recommendations with {model}...")
-    import time
-    start_time = time.time()
-    
-    try:
-        wai_folder = scholarship_folder / wai_number
-        result = agent._process_single_wai(
-            wai_folder=wai_folder,
+
+    # Ensure extraction exists
+    app_data_path = outputs_dir / scholarship_folder.name / wai_number / "application_data.json"
+    if not app_data_path.exists():
+        print("\nRunning application extraction first...")
+        ApplicationAgent(scholarship_folder).analyze_application(
             wai_number=wai_number,
-            scholarship_name=scholarship_name,
-            criteria=criteria,
-            criteria_path=criteria_path,
+            output_dir=str(outputs_dir),
             model=model,
             fallback_model=fallback_model,
-            min_files=min_files,
-            max_retries=max_retries
+            max_retries=max_retries,
         )
-        
-        duration = time.time() - start_time
-        
-        print("\n" + "="*60)
-        print("PROCESSING COMPLETE")
-        print("="*60)
-        print(f"Status: {'SUCCESS' if result else 'FAILED'}")
-        print(f"Duration: {duration:.2f} seconds")
-        
-        if result:
-            output_path = get_recommendation_output_path(
-                Path("outputs"),
-                scholarship_name,
-                wai_number
-            )
-            print(f"\nOutput saved to:")
-            print(f"  {output_path}")
-            print("\nYou can view the JSON file to see the analysis results.")
-        
-    except Exception as e:
-        print(f"\nError during processing: {e}")
-        logger.exception("Processing failed")
-    
+
+    # Ensure attachments exist
+    attachments_dir = outputs_dir / scholarship_folder.name / wai_number / "attachments"
+    if not attachments_dir.exists():
+        print("\nRunning attachment processing first...")
+        AttachmentAgent().process_single_wai(
+            wai_number=wai_number,
+            scholarship_folder=str(scholarship_folder),
+            output_dir=str(outputs_dir),
+            model=model,
+            fallback_model=fallback_model,
+        )
+
+    runner = ScoringRunner(scholarship_folder, outputs_dir)
+    res = runner.run_agent_for_wai(
+        wai_number=wai_number,
+        agent=agent_name,
+        model=model,
+        fallback_model=fallback_model,
+        max_retries=max_retries,
+    )
+
+    print("\n" + "="*60)
+    print("COMPLETE")
+    print("="*60)
+    if res.success:
+        print(f"✓ {agent_name} scoring wrote: {res.output_path}")
+    else:
+        print(f"✗ {agent_name} scoring failed: {res.error}")
     print()
 
 

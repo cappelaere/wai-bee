@@ -236,7 +236,7 @@ def get_academic_analysis_tool(
 ) -> Dict[str, Any]:
     """Get academic analysis for an application (MCP tool)."""
     data_service = get_data_service(scholarship)
-    analysis = data_service.load_academic_analysis(wai_number)
+    analysis = data_service.load_resume_analysis(wai_number)
     if not analysis:
         raise ValueError(f"Academic analysis for {wai_number} not found")
     return analysis

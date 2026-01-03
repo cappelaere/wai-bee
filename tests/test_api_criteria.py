@@ -52,16 +52,16 @@ def test_get_application_criteria(test_client, scholarship_name):
     assert data["line_count"] > 0
 
 
-def test_get_academic_criteria(test_client, scholarship_name):
-    """Test getting academic criteria."""
-    response = test_client.get(f"/criteria/by-type?criteria_type=academic&scholarship={scholarship_name}")
+def test_get_resume_criteria(test_client, scholarship_name):
+    """Test getting resume criteria."""
+    response = test_client.get(f"/criteria/by-type?criteria_type=resume&scholarship={scholarship_name}")
     
     assert response.status_code == 200
     data = response.json()
     
-    assert data["criteria_type"] == "academic"
-    assert data["filename"] == "academic_criteria.txt"
-    assert "Academic" in data["content"]
+    assert data["criteria_type"] == "resume"
+    assert data["filename"] == "resume_criteria.txt"
+    assert "Resume" in data["content"] or "Academic" in data["content"]
 
 
 def test_get_essay_criteria(test_client, scholarship_name):

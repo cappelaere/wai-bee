@@ -37,7 +37,7 @@ class SummaryAgent:
             outputs_dir: Base outputs directory (e.g., Path("outputs")).
             scholarship_folder: Path to scholarship folder (e.g., Path("data/Delaney_Wings")).
         """
-        self.logger = logging.getLogger()
+        self.logger = logging.getLogger(__name__)
         self.outputs_dir = outputs_dir
         self.scholarship_folder = scholarship_folder
         self.scholarship_name = scholarship_folder.name
@@ -85,7 +85,7 @@ class SummaryAgent:
             final_result = calculate_final_score(
                 application_score=scores['application'],
                 recommendation_score=scores['recommendation'],
-                academic_score=scores['academic'],
+                resume_score=scores.get('resume'),
                 essay_score=scores['essay'],
                 weights_config=self.weights_config
             )
@@ -98,7 +98,7 @@ class SummaryAgent:
                 'country': country,
                 'application_score': scores['application'] or 0,
                 'recommendation_score': scores['recommendation'] or 0,
-                'academic_score': scores['academic'] or 0,
+                'resume_score': scores.get('resume') or 0,
                 'essay_score': scores['essay'] or 0,
                 'final_score': final_result['final_score'],
                 'complete': final_result['complete']
@@ -165,7 +165,7 @@ class SummaryAgent:
                 'country',
                 'application_score',
                 'recommendation_score',
-                'academic_score',
+                'resume_score',
                 'essay_score',
                 'final_score',
                 'complete'
@@ -204,7 +204,7 @@ class SummaryAgent:
         final_scores = [a['final_score'] for a in applicants]
         app_scores = [a['application_score'] for a in applicants if a['application_score'] > 0]
         rec_scores = [a['recommendation_score'] for a in applicants if a['recommendation_score'] > 0]
-        acad_scores = [a['academic_score'] for a in applicants if a['academic_score'] > 0]
+        resume_scores = [a.get('resume_score', 0) for a in applicants if a.get('resume_score', 0) > 0]
         essay_scores = [a['essay_score'] for a in applicants if a['essay_score'] > 0]
         
         # Calculate percentiles
@@ -249,9 +249,9 @@ class SummaryAgent:
                     'count': len(rec_scores),
                     'mean': sum(rec_scores) / len(rec_scores) if rec_scores else 0
                 },
-                'academic': {
-                    'count': len(acad_scores),
-                    'mean': sum(acad_scores) / len(acad_scores) if acad_scores else 0
+                'resume': {
+                    'count': len(resume_scores),
+                    'mean': sum(resume_scores) / len(resume_scores) if resume_scores else 0
                 },
                 'essay': {
                     'count': len(essay_scores),
@@ -307,6 +307,7 @@ class SummaryAgent:
         
         # Get weights
         weights = self.weights_config['weights']
+        resume_weight = weights.get('resume')
         
         # Replace template variables
         replacements = {
@@ -331,14 +332,14 @@ class SummaryAgent:
             '{{count_below_average}}': str(count_below_average),
             '{{weight_application}}': f"{weights['application']['weight']*100:.0f}",
             '{{weight_recommendation}}': f"{weights['recommendation']['weight']*100:.0f}",
-            '{{weight_academic}}': f"{weights['academic']['weight']*100:.0f}",
+            '{{weight_resume}}': f"{(resume_weight['weight'] if resume_weight else 0.0)*100:.0f}",
             '{{weight_essay}}': f"{weights['essay']['weight']*100:.0f}",
             '{{application_count}}': str(stats['agent_score_stats']['application']['count']),
             '{{application_mean}}': f"{stats['agent_score_stats']['application']['mean']:.2f}",
             '{{recommendation_count}}': str(stats['agent_score_stats']['recommendation']['count']),
             '{{recommendation_mean}}': f"{stats['agent_score_stats']['recommendation']['mean']:.2f}",
-            '{{academic_count}}': str(stats['agent_score_stats']['academic']['count']),
-            '{{academic_mean}}': f"{stats['agent_score_stats']['academic']['mean']:.2f}",
+            '{{resume_count}}': str(stats['agent_score_stats']['resume']['count']),
+            '{{resume_mean}}': f"{stats['agent_score_stats']['resume']['mean']:.2f}",
             '{{essay_count}}': str(stats['agent_score_stats']['essay']['count']),
             '{{essay_mean}}': f"{stats['agent_score_stats']['essay']['mean']:.2f}",
         }

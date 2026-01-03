@@ -1,7 +1,7 @@
-"""Example script for running the Essay Agent.
+"""Example script for running essay scoring via ScoringRunner.
 
-This script demonstrates how to use the Essay Agent to analyze
-personal essays from scholarship applications.
+This script demonstrates how to use the generic ScoringRunner to score
+the essay artifact and persist `outputs/<scholarship>/<wai>/essay_analysis.json`.
 
 Author: Pat G Cappelaere, IBM Federal Consulting
 Created: 2025-12-06
@@ -14,12 +14,13 @@ Usage:
 
 import logging
 import sys
+import argparse
 from pathlib import Path
 
 # Add parent directory to path for imports
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from agents.essay_agent import EssayAgent
+from agents.scoring_runner import ScoringRunner
 
 
 def setup_logging():
@@ -32,87 +33,52 @@ def setup_logging():
 
 
 def main():
-    """Run essay analysis example."""
+    """Run essay scoring example."""
     setup_logging()
     logger = logging.getLogger()
     
     logger.info("="*60)
-    logger.info("Essay Agent Example")
+    logger.info("Essay Scoring Example (ScoringRunner)")
     logger.info("="*60)
     
-    # Configuration
-    attachments_dir = Path("outputs/attachments")
-    scholarship_name = "Delaney_Wings"
-    criteria_path = Path("data/Delaney_Wings/criteria/essay_criteria.txt")
-    output_dir = Path("outputs/essays")
-    
-    # Test with a single WAI application
-    wai_number = "77747"
+    parser = argparse.ArgumentParser(description="Run essay scoring for a single applicant.")
+    parser.add_argument("--scholarship", default="Delaney_Wings", help="Scholarship folder name under data/")
+    parser.add_argument("--wai", default="75179", help="WAI applicant folder name (e.g., 75179)")
+    parser.add_argument("--outputs-dir", default="outputs", help="Outputs base directory")
+    parser.add_argument("--model", default="ollama/llama3.2:3b", help="Primary LLM model")
+    parser.add_argument("--fallback-model", default="ollama/llama3:latest", help="Fallback LLM model")
+    parser.add_argument("--max-retries", type=int, default=3, help="Max scoring retries")
+    args = parser.parse_args()
+
+    scholarship_folder = Path("data") / args.scholarship
+    outputs_dir = Path(args.outputs_dir)
+    model = args.model
+    fallback_model = args.fallback_model
+    max_retries = args.max_retries
+    wai_number = args.wai
     
     logger.info(f"\nAnalyzing essays for WAI {wai_number}")
-    logger.info(f"Attachments directory: {attachments_dir}")
-    logger.info(f"Scholarship: {scholarship_name}")
-    logger.info(f"Criteria: {criteria_path}")
-    logger.info(f"Output directory: {output_dir}")
-    
-    # Initialize agent
-    agent = EssayAgent()
-    
-    # Analyze single application
-    result = agent.analyze_essays(
-        attachments_dir=attachments_dir,
-        scholarship_name=scholarship_name,
+    logger.info(f"Scholarship: {scholarship_folder.name}")
+    logger.info(f"Outputs directory: {outputs_dir}")
+
+    # Initialize runner
+    runner = ScoringRunner(scholarship_folder, outputs_dir)
+
+    # Score a single applicant's essay artifact
+    res = runner.run_agent_for_wai(
         wai_number=wai_number,
-        criteria_path=criteria_path,
-        model="ollama/llama3.2:3b",
-        fallback_model="ollama/llama3:latest",
-        max_retries=3,
-        output_dir=output_dir
+        agent="essay",
+        model=model,
+        fallback_model=fallback_model,
+        max_retries=max_retries,
     )
-    
-    if result:
-        logger.info("\n" + "="*60)
-        logger.info("Analysis Results")
-        logger.info("="*60)
-        logger.info(f"WAI Number: {result.wai_number}")
-        logger.info(f"Summary: {result.summary}")
-        logger.info(f"\nScores:")
-        logger.info(f"  Motivation: {result.scores.motivation_score}")
-        logger.info(f"  Goals Clarity: {result.scores.goals_clarity_score}")
-        logger.info(f"  Character/Service/Leadership: {result.scores.character_service_leadership_score}")
-        logger.info(f"  Overall: {result.scores.overall_score}")
-        logger.info(f"\nSource Files: {', '.join(result.source_files)}")
-        logger.info(f"Model Used: {result.model_used}")
-    else:
-        logger.error("Essay analysis failed")
-        return 1
-    
-    # Optional: Process multiple applications in batch
-    logger.info("\n" + "="*60)
-    logger.info("Batch Processing Example")
-    logger.info("="*60)
-    
-    # Process first 5 WAI applications
-    stats = agent.process_batch(
-        attachments_dir=attachments_dir,
-        scholarship_name=scholarship_name,
-        criteria_path=criteria_path,
-        output_dir=output_dir,
-        model="ollama/llama3.2:3b",
-        fallback_model="ollama/llama3:latest",
-        max_retries=3,
-        wai_numbers=None  # None = process all
-    )
-    
-    logger.info("\n" + "="*60)
-    logger.info("Batch Processing Results")
-    logger.info("="*60)
-    logger.info(f"Total: {stats['total']}")
-    logger.info(f"Successful: {stats['successful']}")
-    logger.info(f"Failed: {stats['failed']}")
-    logger.info(f"Skipped: {stats['skipped']}")
-    logger.info(f"Duration: {stats['duration']:.2f}s")
-    logger.info(f"Average per WAI: {stats['average_per_wai']:.2f}s")
+
+    if res.success:
+        logger.info(f"✓ Essay scoring complete: {res.output_path}")
+        return 0
+
+    logger.error(f"✗ Essay scoring failed: {res.error}")
+    return 1
     
     return 0
 

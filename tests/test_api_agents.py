@@ -68,15 +68,15 @@ def test_get_application_agent(test_client, scholarship_name):
     assert agent["weight"] == 0.20
 
 
-def test_get_academic_agent(test_client, scholarship_name):
-    """Test getting academic agent configuration."""
-    response = test_client.get(f"/agents/academic?scholarship={scholarship_name}")
+def test_get_resume_agent(test_client, scholarship_name):
+    """Test getting resume agent configuration."""
+    response = test_client.get(f"/agents/resume?scholarship={scholarship_name}")
     
     assert response.status_code == 200
     data = response.json()
     
     agent = data["agent"]
-    assert agent["name"] == "academic"
+    assert agent["name"] == "resume"
     assert agent["weight"] == 0.25
 
 
@@ -175,7 +175,7 @@ def test_agent_evaluates_field(test_client, scholarship_name):
 
 def test_agent_criteria_field(test_client, scholarship_name):
     """Test that scoring agents have criteria field."""
-    response = test_client.get(f"/agents/academic?scholarship={scholarship_name}")
+    response = test_client.get(f"/agents/resume?scholarship={scholarship_name}")
     
     assert response.status_code == 200
     data = response.json()
@@ -183,7 +183,7 @@ def test_agent_criteria_field(test_client, scholarship_name):
     agent = data["agent"]
     assert "criteria" in agent
     # Scoring agents should have criteria file path
-    if agent["name"] in ["application", "academic", "essay", "recommendation"]:
+    if agent["name"] in ["application", "resume", "essay", "recommendation"]:
         assert agent["criteria"] is not None
         assert "criteria" in agent["criteria"]
 

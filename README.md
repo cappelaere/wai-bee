@@ -130,17 +130,22 @@ Or use individual agents:
 
 ```python
 from pathlib import Path
-from agents.academic_agent import AcademicAgent
+from agents.scoring_runner import ScoringRunner
 
-# Initialize agent with scholarship config
-agent = AcademicAgent(Path("data/WAI-Harvard-June-2026"))
-
-# Analyze a single applicant's resume
-result = agent.analyze_resume(
-    wai_number="WAI-12345",
-    model="ollama/llama3.2:3b"
+# Initialize runner with scholarship config
+runner = ScoringRunner(
+    scholarship_folder=Path("data/WAI-Harvard-June-2026"),
+    outputs_dir=Path("outputs"),
 )
-print(f"Overall score: {result.scores['overall_score']}")
+
+# Score a single applicant across all scoring artifacts
+results = runner.run_for_wai(
+    wai_number="WAI-12345",
+    model="ollama/llama3.2:3b",
+    fallback_model="ollama/llama3:latest",
+    max_retries=3,
+)
+print(results)
 ```
 
 ### 6. Run the API Server

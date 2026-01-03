@@ -123,8 +123,8 @@ class DataService:
             logger.error(f"Error loading application analysis for WAI {wai_number}: {e}")
             return None
     
-    def load_academic_analysis(self, wai_number: str) -> Optional[Dict[str, Any]]:
-        """Load academic analysis for a specific WAI number.
+    def load_resume_analysis(self, wai_number: str) -> Optional[Dict[str, Any]]:
+        """Load resume analysis for a specific WAI number.
         
         Args:
             wai_number: WAI application number
@@ -132,9 +132,9 @@ class DataService:
         Returns:
             Dictionary containing analysis data, or None if not found
         """
-        analysis_file = self.scholarship_dir / wai_number / "academic_analysis.json"
+        analysis_file = self.scholarship_dir / wai_number / "resume_analysis.json"
         if not analysis_file.exists():
-            logger.warning(f"Academic analysis not found for WAI {wai_number}")
+            logger.warning(f"Resume analysis not found for WAI {wai_number}")
             return None
         
         try:
@@ -149,7 +149,7 @@ class DataService:
             
             return data
         except Exception as e:
-            logger.error(f"Error loading academic analysis for WAI {wai_number}: {e}")
+            logger.error(f"Error loading resume analysis for WAI {wai_number}: {e}")
             return None
     
     def load_essay_analysis(self, wai_number: str, essay_number: int) -> Optional[Dict[str, Any]]:
@@ -164,8 +164,13 @@ class DataService:
         """
         analysis_file = self.scholarship_dir / wai_number / f"essay_{essay_number}_analysis.json"
         if not analysis_file.exists():
-            logger.warning(f"Essay {essay_number} analysis not found for WAI {wai_number}")
-            return None
+            # Newer pipelines emit a combined essay_analysis.json
+            combined = self.scholarship_dir / wai_number / "essay_analysis.json"
+            if combined.exists():
+                analysis_file = combined
+            else:
+                logger.warning(f"Essay {essay_number} analysis not found for WAI {wai_number}")
+                return None
         
         try:
             with open(analysis_file, 'r', encoding='utf-8') as f:
@@ -186,8 +191,13 @@ class DataService:
         """
         analysis_file = self.scholarship_dir / wai_number / f"recommendation_{rec_number}_analysis.json"
         if not analysis_file.exists():
-            logger.warning(f"Recommendation {rec_number} analysis not found for WAI {wai_number}")
-            return None
+            # Newer pipelines emit a combined recommendation_analysis.json
+            combined = self.scholarship_dir / wai_number / "recommendation_analysis.json"
+            if combined.exists():
+                analysis_file = combined
+            else:
+                logger.warning(f"Recommendation {rec_number} analysis not found for WAI {wai_number}")
+                return None
         
         try:
             with open(analysis_file, 'r', encoding='utf-8') as f:
@@ -386,7 +396,7 @@ class DataService:
                         # The CSV has different score components, so we'll map them appropriately
                         application_score = int(row.get('application_score', 0))
                         recommendation_score = int(row.get('recommendation_score', 0))
-                        academic_score = int(row.get('academic_score', 0))
+                        resume_score = int(row.get('resume_score', 0))
                         essay_score = int(row.get('essay_score', 0))
                         
                         score_entry = {
@@ -399,14 +409,14 @@ class DataService:
                             # Map to expected fields for ScoreResponse
                             'completeness_score': application_score,  # Use application_score as completeness
                             'validity_score': recommendation_score,   # Use recommendation_score as validity
-                            'attachment_score': academic_score,       # Use academic_score as attachment
+                            'attachment_score': resume_score,         # Use resume_score as attachment
                             'final_score': final_score,
                             'application_score': application_score,
                             'recommendation_score': recommendation_score,
-                            'academic_score': academic_score,
+                            'resume_score': resume_score,
                             'essay_score': essay_score,
                             'complete': row.get('complete', 'False') == 'True',
-                            'summary': f"Final Score: {final_score:.2f} (Academic: {academic_score}, Essay: {essay_score}, Application: {application_score}, Recommendation: {recommendation_score})"
+                            'summary': f"Final Score: {final_score:.2f} (Resume: {resume_score}, Essay: {essay_score}, Application: {application_score}, Recommendation: {recommendation_score})"
                         }
                         scores.append(score_entry)
                     except (ValueError, TypeError) as e:

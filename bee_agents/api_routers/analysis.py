@@ -9,19 +9,14 @@ License: MIT
 import logging
 from fastapi import APIRouter, HTTPException, Query
 from fastapi_cache.decorator import cache
-from ..models import (
-    ApplicationAnalysisResponse,
-    AcademicAnalysisResponse,
-    EssayAnalysisResponse,
-    RecommendationAnalysisResponse
-)
+from typing import Any, Dict
 from ..api_utils import get_data_service
 
 router = APIRouter(tags=["Analysis"])
 logger = logging.getLogger(__name__)
 
 
-@router.get("/application", response_model=ApplicationAnalysisResponse, operation_id="get_application")
+@router.get("/application", operation_id="get_application")
 @cache(expire=3600)  # Cache for 60 minutes
 async def get_application_analysis(
     scholarship: str = Query(..., description="Scholarship name (e.g., 'Delaney_Wings' or 'Evans_Wings')"),
@@ -43,41 +38,41 @@ async def get_application_analysis(
         if not analysis:
             raise HTTPException(status_code=404, detail=f"Application {wai_number} not found")
         
-        return ApplicationAnalysisResponse(**analysis)
+        return analysis
     
     except Exception as e:
         logger.exception("Error getting application analysis for %s", wai_number)
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.get("/academic", response_model=AcademicAnalysisResponse, operation_id="get_academic")
-async def get_academic_analysis(
+@router.get("/resume", operation_id="get_resume")
+async def get_resume_analysis(
     scholarship: str = Query(..., description="Scholarship name (e.g., 'Delaney_Wings' or 'Evans_Wings')"),
     wai_number: str = Query(..., description="WAI application number")
 ):
-    """Get academic analysis for an application.
+    """Get resume analysis for an application.
     
     Args:
         scholarship: Name of the scholarship
         wai_number: WAI application number
         
     Returns:
-        AcademicAnalysisResponse with academic analysis
+        ResumeAnalysisResponse with resume analysis
     """
     data_service = get_data_service(scholarship)
     
     try:
-        analysis = data_service.load_academic_analysis(wai_number)
+        analysis = data_service.load_resume_analysis(wai_number)
         if not analysis:
             raise HTTPException(
                 status_code=404,
-                detail=f"Academic analysis for {wai_number} not found"
+                detail=f"Resume analysis for {wai_number} not found"
             )
         
-        return AcademicAnalysisResponse(**analysis)
+        return analysis
   
     except Exception as e:
-        logger.exception("Error getting academic analysis for %s", wai_number)
+        logger.exception("Error getting resume analysis for %s", wai_number)
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -112,7 +107,7 @@ async def get_essay_analysis(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.get("/essay", response_model=EssayAnalysisResponse, operation_id="get_essay")
+@router.get("/essay", operation_id="get_essay")
 async def get_single_essay_analysis(
     essay_number: int = Query(..., description="Essay number (1 or 2)", example=1),
     scholarship: str = Query(..., description="Scholarship name (e.g., 'Delaney_Wings' or 'Evans_Wings')"),
@@ -141,7 +136,7 @@ async def get_single_essay_analysis(
                 detail=f"Essay {essay_number} analysis for {wai_number} not found"
             )
         
-        return EssayAnalysisResponse(**analysis)
+        return analysis
     
     except Exception as e:
         logger.exception("Error getting essay %d analysis for %s", essay_number, wai_number)
@@ -179,7 +174,7 @@ async def get_recommendation_analysis(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.get("/recommendation/by-number", response_model=RecommendationAnalysisResponse, operation_id="get_recommendation")
+@router.get("/recommendation/by-number", operation_id="get_recommendation")
 async def get_single_recommendation_analysis(
     rec_number: int = Query(..., description="Recommendation number (1 or 2)", example=1),
     scholarship: str = Query(..., description="Scholarship name (e.g., 'Delaney_Wings' or 'Evans_Wings')"),
@@ -208,7 +203,7 @@ async def get_single_recommendation_analysis(
                 detail=f"Recommendation {rec_number} analysis for {wai_number} not found"
             )
         
-        return RecommendationAnalysisResponse(**analysis)
+        return analysis
   
     except Exception as e:
         logger.exception("Error getting recommendation %d analysis for %s", rec_number, wai_number)

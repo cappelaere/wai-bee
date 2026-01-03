@@ -8,20 +8,21 @@ The number of applicants can be customized via command-line arguments.
 
 Usage:
     # Process Delaney Wings with default 20 applicants
-    python examples/process_applicants.py Delaney_Wings --max-applicants 20
+    python examples/process_applicants.py --scholarship Delaney_Wings --max-applicants 20
     
     # Process Evans Wings with default 20 applicants
-    python examples/process_applicants.py Evans_Wings
+    python examples/process_applicants.py --scholarship Evans_Wings
     
     # Process 10 applicants from Evans Wings
-    python examples/process_applicants.py Evans_Wings --max-applicants 10
+    python examples/process_applicants.py --scholarship Evans_Wings --max-applicants 10
     
     # Process all applicants from Delaney Wings
-    python examples/process_applicants.py Delaney_Wings --max-applicants 1000
+    python examples/process_applicants.py --scholarship Delaney_Wings --max-applicants 1000
 """
 
 import sys
 import argparse
+from datetime import datetime
 from pathlib import Path
 
 # Add parent directory to path
@@ -42,34 +43,79 @@ def main():
         epilog="""
 Examples:
   # Process Delaney Wings with default 20 applicants
-  python examples/process_applicants.py
+  python examples/process_applicants.py --scholarship Delaney_Wings
   
   # Process Evans Wings with default 20 applicants
-  python examples/process_applicants.py Evans_Wings
+  python examples/process_applicants.py --scholarship Evans_Wings
   
   # Process 10 applicants from Evans Wings
-  python examples/process_applicants.py Evans_Wings --max-applicants 10
+  python examples/process_applicants.py --scholarship Evans_Wings --max-applicants 10
   
   # Process all applicants (use large number)
-  python examples/process_applicants.py Delaney_Wings --max-applicants 1000
-  
-Available scholarships:
-  - Delaney_Wings (default)
-  - Evans_Wings
+  python examples/process_applicants.py --scholarship Delaney_Wings --max-applicants 1000
         """
     )
     parser.add_argument(
-        'scholarship',
-        nargs='?',
+        '--scholarship',
+        type=str,
         default='Delaney_Wings',
-        choices=['Delaney_Wings', 'Evans_Wings'],
-        help='Scholarship to process (default: Delaney_Wings)'
+        help="Scholarship folder name under data/ (default: 'Delaney_Wings')"
     )
     parser.add_argument(
         '--max-applicants',
         type=int,
         default=20,
         help='Maximum number of applicants to process (default: 20)'
+    )
+    parser.add_argument(
+        '--outputs-dir',
+        type=Path,
+        default=Path("outputs"),
+        help="Base outputs directory (default: 'outputs')"
+    )
+    parser.add_argument(
+        '--model',
+        type=str,
+        default="ollama/llama3.2:3b",
+        help="Primary LLM model to use (default: 'ollama/llama3.2:3b')"
+    )
+    parser.add_argument(
+        '--fallback-model',
+        type=str,
+        default="anthropic/claude-haiku-4-5-20251001",
+        help="Fallback LLM model if primary fails (default: 'anthropic/claude-haiku-4-5-20251001')"
+    )
+    parser.add_argument(
+        '--max-retries',
+        type=int,
+        default=3,
+        help="Maximum retry attempts for LLM calls (default: 3)"
+    )
+    parser.add_argument(
+        '--skip-stages',
+        type=str,
+        default="",
+        help="Comma-separated list of stages to skip (e.g., 'attachments,scoring,summary')"
+    )
+    parser.add_argument(
+        '--no-parallel',
+        action='store_true',
+        help="Disable parallel stage execution for each applicant (default: parallel enabled)"
+    )
+    parser.add_argument(
+        '--stop-on-error',
+        action='store_true',
+        help="Stop processing when an applicant fails (default: continue)"
+    )
+    parser.add_argument(
+        '--preflight',
+        action='store_true',
+        help="Run preflight validation before processing (check for missing/corrupt files)"
+    )
+    parser.add_argument(
+        '--preflight-strict',
+        action='store_true',
+        help="With --preflight, abort if any validation errors found (default: skip invalid applicants)"
     )
     
     args = parser.parse_args()
@@ -85,35 +131,54 @@ Available scholarships:
         print(f"Error: Scholarship folder does not exist: {scholarship_folder}")
         sys.exit(1)
     
-    # Setup logging: console + fresh file for this workflow run
+    # Setup logging: console + timestamped file for this workflow run
     log_dir = Path("logs")
     log_dir.mkdir(parents=True, exist_ok=True)
-    log_file = log_dir / f"process_applicants_{args.scholarship}.log"
-    # Truncate or create empty log file at start of run
-    log_file.open("w").close()
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    log_file = log_dir / f"process_{args.scholarship}_{timestamp}.log"
     
-    setup_logging(log_file=str(log_file))
+    setup_logging(log_file=str(log_file), force=True)
     logger = get_logger(__name__)
     
     logger.info("="*60)
     logger.info(f"Processing {args.max_applicants} Applicants - {args.scholarship}")
     logger.info("="*60)
     logger.info(f"Scholarship folder: {scholarship_folder}")
-    logger.info(f"Outputs directory: {config.OUTPUTS_DIR}/{args.scholarship}")
+    logger.info(f"Outputs directory: {args.outputs_dir / args.scholarship}")
     
     # Initialize workflow
     workflow = ScholarshipProcessingWorkflow(
         scholarship_folder=scholarship_folder,
-        outputs_dir=config.OUTPUTS_DIR
+        outputs_dir=args.outputs_dir
     )
     
+    skip_stages_list = [s.strip() for s in (args.skip_stages or "").split(",") if s.strip()]
+
     # Process applicants
     results = workflow.process_all_applicants(
         max_applicants=args.max_applicants,
-        skip_stages=[],         # Process all stages
-        parallel=True,          # Use parallel processing for speed
-        stop_on_error=False      # Continue processing even if an applicant fails
+        skip_stages=skip_stages_list,
+        parallel=not args.no_parallel,
+        stop_on_error=args.stop_on_error,
+        model=args.model,
+        fallback_model=args.fallback_model,
+        max_retries=args.max_retries,
+        preflight=args.preflight,
+        preflight_strict=args.preflight_strict,
     )
+    
+    # Check if aborted due to preflight
+    if results.get('aborted'):
+        logger.error("\n" + "="*60)
+        logger.error("Processing Aborted!")
+        logger.error("="*60)
+        logger.error(f"Reason: {results.get('abort_reason')}")
+        if 'preflight' in results:
+            pf = results['preflight']
+            logger.error(f"Preflight errors: {pf['errors']}")
+            logger.error(f"Preflight warnings: {pf['warnings']}")
+            logger.error(f"Invalid applicants: {', '.join(pf['invalid_applicants'])}")
+        sys.exit(1)
     
     # Display results
     logger.info("\n" + "="*60)
@@ -133,7 +198,7 @@ Available scholarships:
             logger.info(f"  Complete applications: {summary['complete_applications']}/{summary['total_applicants']}")
     
     logger.info("\n" + "="*60)
-    logger.info(f"Check outputs/{args.scholarship}/ for results")
+    logger.info(f"Check {args.outputs_dir / args.scholarship} for results")
     logger.info("="*60)
 
 

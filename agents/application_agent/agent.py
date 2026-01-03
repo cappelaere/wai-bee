@@ -367,40 +367,11 @@ class ApplicationAgent:
                 )
                 return
         
-        # Score the application (only if we have extracted data)
-        if extracted_data is None:
-            logger.error(f"No extracted data available for scoring {wai_number}")
-            result.add_error(wai_number, "No extracted data available", app_file.name)
-            return
-        
-        logger.info("Scoring application completeness and validity...")
-        output_dir_path = Path(output_dir)
-        
-        # Use a larger model for scoring if the extraction model is too small
-        scoring_model = model
-        if "1b" in model.lower():
-            scoring_model = model.replace("1b", "3b")
-            logger.info(f"Using larger model for scoring: {scoring_model}")
-        
-        analysis = LLMService.score_application(
-            app_data=extracted_data,
-            scholarship_folder=self.scholarship_folder,
-            wai_number=wai_number,
-            output_dir=output_dir_path,
-            model=scoring_model,
-            max_retries=max_retries
-        )
-        
-        if analysis:
-            # Save analysis JSON
-            if FileService.save_analysis(analysis, analysis_path):
-                result.add_success()
-                logger.info(f"✓ Successfully processed and scored {wai_number}")
-            else:
-                result.add_error(wai_number, "Failed to save analysis", app_file.name)
-        else:
-            logger.warning(f"Scoring failed for {wai_number}, but extraction succeeded")
-            result.add_success()  # Still count as success since extraction worked
+        # Scoring is handled by the generic ScoringRunner (schema-driven) as a separate stage.
+        # At this stage we only ensure extraction + validation succeeded and was persisted.
+        result.add_success()
+        logger.info(f"✓ Successfully extracted application data for {wai_number}")
+        return
     
 
 # Made with Bob
