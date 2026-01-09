@@ -39,11 +39,11 @@ python examples/process_applicants.py --scholarship Delaney_Wings --skip-stages 
 # Control model and retry behavior
 python examples/process_applicants.py --scholarship Delaney_Wings --model ollama/llama3.2:3b --fallback-model ollama/llama3:latest --max-retries 3
 
-# Run preflight check (skip invalid applicants and continue)
-python examples/process_applicants.py --scholarship Delaney_Wings --preflight
+# Disable preflight check (process all applicants without validation)
+python examples/process_applicants.py --scholarship Delaney_Wings --no-preflight
 
-# Run preflight check in strict mode (abort if any errors found)
-python examples/process_applicants.py --scholarship Delaney_Wings --preflight --preflight-strict
+# Run preflight in strict mode (abort if any errors found instead of skipping)
+python examples/process_applicants.py --scholarship Delaney_Wings --preflight-strict
 
 # Show help
 python examples/process_applicants.py --help
@@ -57,8 +57,9 @@ python examples/process_applicants.py --help
 - `--skip-stages` (optional): Comma-separated list (e.g., `attachments,scoring,summary`)
 - `--no-parallel` (optional): Disable parallel stage execution per applicant
 - `--stop-on-error` (optional): Stop when an applicant fails
-- `--preflight` (optional): Run preflight validation before processing (detect missing/corrupt files)
-- `--preflight-strict` (optional): With `--preflight`, abort if any errors found (default: skip invalid applicants)
+- `--preflight` (default): Run preflight validation before processing (detect missing/corrupt files)
+- `--no-preflight` (optional): Disable preflight validation (process all applicants without checks)
+- `--preflight-strict` (optional): Abort if any preflight errors found (default: skip invalid applicants)
 
 **Output:**
 - Per-applicant outputs in `outputs/<scholarship>/<wai_number>/`

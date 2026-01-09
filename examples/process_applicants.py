@@ -6,15 +6,18 @@ This script processes applicants for any configured scholarship,
 running all stages in parallel and generating a summary report.
 The number of applicants can be customized via command-line arguments.
 
+By default, a preflight check validates all applicant files before processing,
+skipping any applicants with missing, empty, or corrupt files.
+
 Usage:
-    # Process Delaney Wings with default 20 applicants
+    # Process Delaney Wings with default 20 applicants (preflight enabled by default)
     python examples/process_applicants.py --scholarship Delaney_Wings --max-applicants 20
     
     # Process Evans Wings with default 20 applicants
     python examples/process_applicants.py --scholarship Evans_Wings
     
-    # Process 10 applicants from Evans Wings
-    python examples/process_applicants.py --scholarship Evans_Wings --max-applicants 10
+    # Process without preflight validation
+    python examples/process_applicants.py --scholarship Delaney_Wings --no-preflight
     
     # Process all applicants from Delaney Wings
     python examples/process_applicants.py --scholarship Delaney_Wings --max-applicants 1000
@@ -110,12 +113,18 @@ Examples:
     parser.add_argument(
         '--preflight',
         action='store_true',
-        help="Run preflight validation before processing (check for missing/corrupt files)"
+        default=True,
+        help="Run preflight validation before processing (default: enabled)"
+    )
+    parser.add_argument(
+        '--no-preflight',
+        action='store_true',
+        help="Disable preflight validation (skip file checks, process all applicants)"
     )
     parser.add_argument(
         '--preflight-strict',
         action='store_true',
-        help="With --preflight, abort if any validation errors found (default: skip invalid applicants)"
+        help="Abort if any preflight validation errors found (default: skip invalid applicants)"
     )
     
     args = parser.parse_args()
@@ -154,6 +163,9 @@ Examples:
     
     skip_stages_list = [s.strip() for s in (args.skip_stages or "").split(",") if s.strip()]
 
+    # Determine preflight setting (--no-preflight overrides --preflight default)
+    run_preflight = args.preflight and not args.no_preflight
+    
     # Process applicants
     results = workflow.process_all_applicants(
         max_applicants=args.max_applicants,
@@ -163,7 +175,7 @@ Examples:
         model=args.model,
         fallback_model=args.fallback_model,
         max_retries=args.max_retries,
-        preflight=args.preflight,
+        preflight=run_preflight,
         preflight_strict=args.preflight_strict,
     )
     
