@@ -6,22 +6,27 @@ extracts information using LLM, and saves results as JSON files.
 
 Author: Pat G Cappelaere, IBM Federal Consulting
 Created: 2025-12-05
-Version: 1.0.0
+Version: 2.0.0 - Updated for WAI-general-2025 folder structure
 License: MIT
+
+Folder Structure (WAI-general-2025/):
+    - data/{scholarship}/{WAI-ID}/     Application files (PDFs, etc.)
+    - config/{scholarship}/            Config files (config.yml, agents.json)
+    - output/{scholarship}/{WAI-ID}/   Processing outputs
 
 Example:
     Basic usage of the Application Agent::
 
         from agents.application_agent import ApplicationAgent
+        from utils.config import config
         
-        agent = ApplicationAgent()
-        result = agent.process_applications(
-            scholarship_folder="data/Delaney_Wings/Applications",
-            max_applications=10,
+        agent = ApplicationAgent(config.get_config_folder("Delaney_Wings"))
+        result = agent.analyze_application(
+            wai_number="75179",
             model="ollama/llama3.2:1b"
         )
         
-        print(f"Processed: {result.successful}/{result.total}")
+        print(f"Extracted: {result.name}")
 
 Attributes:
     logger: Module-level logger instance for logging operations.
@@ -50,6 +55,7 @@ from utils.document_parser import parse_document_markdown, get_markitdown_conver
 from .llm_service import LLMService
 from .validation_service import ValidationService
 from .file_service import FileService
+from utils.config import config as global_config
 
 logger = logging.getLogger()
 
@@ -82,10 +88,14 @@ class ApplicationAgent:
         """Initialize the Application Agent with scholarship configuration.
         
         Args:
-            scholarship_folder: Path to scholarship data folder containing agents.json.
+            scholarship_folder: Path to scholarship config folder containing agents.json.
         """
-        self.scholarship_folder = scholarship_folder
+        self.config_folder = scholarship_folder
+        self.scholarship_folder = scholarship_folder  # Backwards compatibility
         self.scholarship_name = scholarship_folder.name
+        
+        # Derive data folder from global config
+        self.data_folder = global_config.get_data_folder(self.scholarship_name)
         
         # Initialize the document converter once for reuse
         if MARKDOWN_PARSER:
@@ -93,6 +103,8 @@ class ApplicationAgent:
         else:
             self.converter = get_converter()
         logger.info(f"Application Agent initialized for {self.scholarship_name}")
+        logger.info(f"  Config folder: {self.config_folder}")
+        logger.info(f"  Data folder: {self.data_folder}")
     
     def analyze_application(
         self,
@@ -122,8 +134,8 @@ class ApplicationAgent:
         if max_retries is None:
             max_retries = int(os.getenv('MAX_RETRIES', '3'))
         
-        # Find WAI folder in Applications subfolder
-        wai_folder = self.scholarship_folder / "Applications" / wai_number
+        # Find WAI folder in data folder (WAI-general-2025/data/{scholarship}/{wai_number})
+        wai_folder = self.data_folder / wai_number
             
         if not wai_folder.exists():
             logger.error(f"WAI folder does not exist: {wai_folder}")
@@ -210,12 +222,11 @@ class ApplicationAgent:
         result.start_time = time.time()
         
         try:
-            # Get WAI folders
-            applications_folder = self.scholarship_folder / "Applications"
+            # Get WAI folders from data folder
             if wai_numbers:
-                wai_folders = [applications_folder / wai for wai in wai_numbers if (applications_folder / wai).exists()]
+                wai_folders = [self.data_folder / wai for wai in wai_numbers if (self.data_folder / wai).exists()]
             else:
-                wai_folders = scan_scholarship_folder(str(applications_folder), max_applications)
+                wai_folders = scan_scholarship_folder(str(self.data_folder), max_applications)
             result.total = len(wai_folders)
             
             if result.total == 0:

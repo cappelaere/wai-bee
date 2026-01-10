@@ -57,7 +57,7 @@ def check_data_directories() -> Dict[str, Any]:
 def check_config_files() -> Dict[str, Any]:
     """Check if required configuration files exist."""
     try:
-        user_config = Path(os.getenv("USER_CONFIG_FILE", "config/users.json"))
+        user_config = Path(os.getenv("USER_CONFIG_FILE", "WAI-general-2025/config/users.json"))
         
         return {
             "status": "healthy" if user_config.exists() else "warning",

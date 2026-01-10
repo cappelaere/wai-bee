@@ -51,19 +51,28 @@ wai-bee/
 │   ├── essay_agent/            # Personal essay analysis
 │   └── recommendation_agent/   # Recommendation letter analysis
 ├── bee_agents/                 # FastAPI server & API
-├── data/                       # Scholarship configurations
-│   ├── WAI-Harvard-June-2026/
-│   │   ├── config.yml          # Human-authored configuration
-│   │   ├── agents.json         # Generated agent config
-│   │   ├── prompts/            # Generated analysis & repair prompts
-│   │   └── schemas_generated/  # Generated output schemas
-│   ├── Delaney_Wings/
-│   └── Evans_Wings/
+├── WAI-general-2025/           # Scholarship data container
+│   ├── data/                   # Application files by scholarship
+│   │   ├── Delaney_Wings/      # {WAI-ID}/ subfolders with PDFs
+│   │   └── Evans_Wings/
+│   ├── config/                 # Scholarship configurations
+│   │   ├── Delaney_Wings/
+│   │   │   ├── config.yml      # Human-authored configuration
+│   │   │   ├── agents.json     # Generated agent config
+│   │   │   ├── prompts/        # Generated analysis & repair prompts
+│   │   │   └── schemas_generated/
+│   │   └── Evans_Wings/
+│   ├── output/                 # Processing results by scholarship
+│   │   ├── Delaney_Wings/      # {WAI-ID}/ subfolders with analysis JSON
+│   │   └── Evans_Wings/
+│   └── logs/                   # Processing logs by scholarship
+│       ├── Delaney_Wings/
+│       └── Evans_Wings/
 ├── docs/                       # Documentation
 ├── models/                     # Pydantic data models
-├── outputs/                    # Processing results
 ├── schemas/                    # Shared JSON schemas
 ├── scripts/                    # Generation & validation scripts
+├── terraform/                  # AWS infrastructure (S3, KMS)
 ├── utils/                      # Shared utilities
 └── workflows/                  # Workflow orchestration
 ```
@@ -94,16 +103,16 @@ ollama pull llama3:latest  # fallback model
 
 ### 3. Configure a Scholarship
 
-Create `data/<scholarship-name>/config.yml` with evaluation criteria. See `docs/SCHOLARSHIP_PROCESS.md` for the complete specification.
+Create `WAI-general-2025/config/<scholarship-name>/config.yml` with evaluation criteria. See `docs/SCHOLARSHIP_PROCESS.md` for the complete specification.
 
 ### 4. Generate Artifacts
 
 ```bash
 # Validate and generate all artifacts
-python scripts/generate_all.py data/<scholarship-name>
+python scripts/generate_all.py WAI-general-2025/config/<scholarship-name>
 ```
 
-This produces:
+This produces (in the config folder):
 - `agents.json` — Agent configuration with prompts and schemas
 - `prompts/*.txt` — Analysis and repair prompts
 - `schemas_generated/*.json` — Output validation schemas
@@ -114,11 +123,12 @@ This produces:
 ```python
 from pathlib import Path
 from workflows import ScholarshipProcessingWorkflow
+from utils.config import config
 
 # Initialize workflow
 workflow = ScholarshipProcessingWorkflow(
-    scholarship_folder=Path("data/WAI-Harvard-June-2026"),
-    outputs_dir=Path("outputs")
+    scholarship_folder=config.get_config_folder("Delaney_Wings"),
+    outputs_dir=config.OUTPUTS_DIR
 )
 
 # Process all applicants
@@ -126,21 +136,28 @@ results = workflow.process_all_applicants()
 print(f"Processed: {results['successful']}/{results['total_applicants']}")
 ```
 
+Or use the CLI:
+
+```bash
+python examples/process_applicants.py --scholarship Delaney_Wings --max-applicants 10
+```
+
 Or use individual agents:
 
 ```python
 from pathlib import Path
 from agents.scoring_runner import ScoringRunner
+from utils.config import config
 
 # Initialize runner with scholarship config
 runner = ScoringRunner(
-    scholarship_folder=Path("data/WAI-Harvard-June-2026"),
-    outputs_dir=Path("outputs"),
+    scholarship_folder=config.get_config_folder("Delaney_Wings"),
+    outputs_dir=config.OUTPUTS_DIR,
 )
 
 # Score a single applicant across all scoring artifacts
 results = runner.run_for_wai(
-    wai_number="WAI-12345",
+    wai_number="75179",
     model="ollama/llama3.2:3b",
     fallback_model="ollama/llama3:latest",
     max_retries=3,

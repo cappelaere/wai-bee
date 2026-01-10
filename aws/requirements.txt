@@ -1,0 +1,11 @@
+# AWS SDK
+boto3>=1.34.0
+
+# PDF parsing fallback (if MarkItDown unavailable)
+PyPDF2>=3.0.0
+
+# Note: The following are installed from the main project:
+# - presidio-analyzer (PII detection)
+# - presidio-anonymizer (PII removal)
+# - markitdown (document parsing)
+

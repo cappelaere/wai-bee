@@ -258,9 +258,11 @@ def run_preflight_check(
     """Run preflight validation on all applicant files.
     
     Args:
-        scholarship_folder: Path to the scholarship folder.
+        scholarship_folder: Path to the data folder containing WAI subfolders.
+            In the new structure, this is WAI-general-2025/data/{scholarship}/
+            and contains WAI folders directly (no Applications subfolder).
         wai_numbers: Optional list of specific WAI numbers to check.
-            If None, scans all applicants in Applications folder.
+            If None, scans all applicants.
         max_applicants: Optional maximum number of applicants to check.
         required_attachments: Minimum number of attachment files expected.
         stop_on_first_error: If True, stop scanning after first error.
@@ -270,14 +272,16 @@ def run_preflight_check(
     """
     result = PreflightResult()
     
-    applications_folder = scholarship_folder / "Applications"
-    if not applications_folder.exists():
-        logger.error(f"Applications folder not found: {applications_folder}")
+    # In the new structure, WAI folders are directly under the data folder
+    # (no Applications subfolder)
+    data_folder = scholarship_folder
+    if not data_folder.exists():
+        logger.error(f"Data folder not found: {data_folder}")
         result.issues.append(PreflightIssue(
             wai_number="(system)",
-            file_name="Applications/",
+            file_name="(data folder)",
             issue_type="missing",
-            message=f"Applications folder not found: {applications_folder}",
+            message=f"Data folder not found: {data_folder}",
             severity="error"
         ))
         return result
@@ -285,7 +289,7 @@ def run_preflight_check(
     # Get list of WAI numbers to check
     if wai_numbers is None:
         wai_numbers = [
-            d.name for d in applications_folder.iterdir()
+            d.name for d in data_folder.iterdir()
             if d.is_dir() and not d.name.startswith('.')
         ]
         
@@ -306,7 +310,7 @@ def run_preflight_check(
     logger.info(f"Running preflight check on {len(wai_numbers)} applicants...")
     
     for wai_number in wai_numbers:
-        wai_folder = applications_folder / wai_number
+        wai_folder = data_folder / wai_number
         
         if not wai_folder.exists():
             result.issues.append(PreflightIssue(

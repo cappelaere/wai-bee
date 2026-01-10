@@ -50,9 +50,9 @@ python examples/process_applicants.py --help
 ```
 
 **Arguments:**
-- `--scholarship` (optional): Scholarship folder name under `data/` (e.g., `Delaney_Wings`, `Evans_Wings`, `WAI-Harvard-June-2026`)
+- `--scholarship` (optional): Scholarship name (e.g., `Delaney_Wings`, `Evans_Wings`)
 - `--max-applicants` (optional): Maximum number of applicants to process (default: 20)
-- `--outputs-dir` (optional): Base output directory (default: `outputs/`)
+- `--outputs-dir` (optional): Base output directory (default: `WAI-general-2025/output/`)
 - `--model` / `--fallback-model` / `--max-retries` (optional): LLM execution controls (defaults match the other examples)
 - `--skip-stages` (optional): Comma-separated list (e.g., `attachments,scoring,summary`)
 - `--no-parallel` (optional): Disable parallel stage execution per applicant
@@ -62,21 +62,22 @@ python examples/process_applicants.py --help
 - `--preflight-strict` (optional): Abort if any preflight errors found (default: skip invalid applicants)
 
 **Output:**
-- Per-applicant outputs in `outputs/<scholarship>/<wai_number>/`
+- Per-applicant outputs in `WAI-general-2025/output/<scholarship>/<wai_number>/`
   - `application_data.json` (extraction)
   - `attachments/*.txt` (attachment preprocessing)
   - `application_analysis.json`, `resume_analysis.json`, `essay_analysis.json`, `recommendation_analysis.json` (scoring)
-- Summary CSV in `outputs/<scholarship>/summary.csv`
-- Statistics report in `outputs/<scholarship>/statistics.txt`
-- Logs in `logs/process_<scholarship>_<timestamp>.log` (e.g., `process_Delaney_Wings_20260102_120600.log`)
+- Summary CSV in `WAI-general-2025/output/<scholarship>/summary.csv`
+- Statistics report in `WAI-general-2025/output/<scholarship>/statistics.txt`
+- Logs in `WAI-general-2025/logs/<scholarship>/process_<timestamp>.log`
 
 **Example Output:**
 ```
 ============================================================
 Processing 20 Applicants - Evans_Wings
 ============================================================
-Scholarship folder: data/Evans_Wings
-Outputs directory: outputs/Evans_Wings
+Config folder: WAI-general-2025/config/Evans_Wings
+Data folder: WAI-general-2025/data/Evans_Wings
+Outputs directory: WAI-general-2025/output/Evans_Wings
 
 Processing Complete!
 ============================================================

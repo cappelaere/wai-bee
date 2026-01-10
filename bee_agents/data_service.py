@@ -5,7 +5,7 @@ the outputs directory for a specific scholarship.
 
 Author: Pat G Cappelaere, IBM Federal Consulting
 Created: 2025-12-08
-Version: 1.0.0
+Version: 2.0.0 - Updated for WAI-general-2025 folder structure
 License: MIT
 """
 
@@ -18,27 +18,38 @@ from typing import List, Optional, Dict, Any
 import statistics
 
 from .logging_config import setup_logging
+from utils.config import config as global_config
 
 logger = setup_logging("data_service")
 
 class DataService:
     """Service for loading scholarship analysis data."""
     
-    def __init__(self, scholarship_name: str, base_output_dir: str = "outputs"):
+    def __init__(self, scholarship_name: str, base_output_dir: Optional[str] = None):
         """Initialize the data service.
         
         Args:
             scholarship_name: Name of the scholarship (e.g., "Delaney_Wings")
-            base_output_dir: Base directory containing output files
+            base_output_dir: Base directory containing output files. If None, uses global config.
         """
         self.scholarship_name = scholarship_name
-        self.base_output_dir = Path(base_output_dir)
+        
+        if base_output_dir:
+            self.base_output_dir = Path(base_output_dir)
+        else:
+            self.base_output_dir = global_config.OUTPUTS_DIR
+        
         self.scholarship_dir = self.base_output_dir / scholarship_name
+        
+        # Config folder for config files
+        self.config_dir = global_config.get_config_folder(scholarship_name)
         
         if not self.scholarship_dir.exists():
             raise ValueError(f"Scholarship directory not found: {self.scholarship_dir}")
         
         logger.info(f"DataService initialized for scholarship: {scholarship_name}")
+        logger.info(f"  Output dir: {self.scholarship_dir}")
+        logger.info(f"  Config dir: {self.config_dir}")
     
     def load_scholarship_info(self) -> Optional[Dict[str, Any]]:
         """Load scholarship information from scholarship.json.
@@ -46,7 +57,7 @@ class DataService:
         Returns:
             Dictionary containing scholarship information, or None if not found
         """
-        scholarship_file = Path("data") / self.scholarship_name / "scholarship.json"
+        scholarship_file = self.config_dir / "scholarship.json"
         if not scholarship_file.exists():
             logger.warning(f"Scholarship info file not found: {scholarship_file}")
             return None
@@ -64,7 +75,7 @@ class DataService:
         Returns:
             Dictionary containing agents configuration, or None if not found
         """
-        agents_file = Path("data") / self.scholarship_name / "agents.json"
+        agents_file = self.config_dir / "agents.json"
         if not agents_file.exists():
             logger.warning(f"Agents config file not found: {agents_file}")
             return None

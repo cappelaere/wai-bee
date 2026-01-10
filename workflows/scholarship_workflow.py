@@ -5,7 +5,7 @@ from start to finish in a coordinated manner.
 
 Author: Pat G Cappelaere, IBM Federal Consulting
 Created: 2025-12-06
-Version: 1.0.0
+Version: 2.0.0 - Updated for WAI-general-2025 folder structure
 License: MIT
 """
 
@@ -24,6 +24,7 @@ from agents.application_agent.agent import ApplicationAgent
 from agents.scoring_runner import ScoringRunner
 from agents.summary_agent.agent import SummaryAgent
 from utils.preflight_check import run_preflight_check, PreflightResult
+from utils.config import config as global_config
 
 
 class DefaultWorkflowSchema:
@@ -69,8 +70,16 @@ class ScholarshipProcessingWorkflow(Workflow):
     Inherits from beeai_framework.workflows.Workflow for standardized
     workflow management and error handling.
     
+    Folder Structure (WAI-general-2025/):
+        - data/{scholarship}/{WAI-ID}/     Application files (PDFs, etc.)
+        - config/{scholarship}/            Config files (config.yml, agents.json, prompts/, schemas_generated/)
+        - output/{scholarship}/{WAI-ID}/   Processing outputs (analysis JSON files)
+        - logs/                            Processing logs
+    
     Attributes:
-        scholarship_folder: Path to scholarship configuration folder.
+        scholarship_name: Name of the scholarship.
+        config_folder: Path to scholarship config folder.
+        data_folder: Path to scholarship data folder.
         outputs_dir: Base outputs directory.
         logger: Logger instance.
     """
@@ -78,42 +87,56 @@ class ScholarshipProcessingWorkflow(Workflow):
     def __init__(
         self,
         scholarship_folder: Path,
-        outputs_dir: Path = Path("outputs"),
+        outputs_dir: Optional[Path] = None,
         schema: Optional[type] = None
     ):
         """Initialize the workflow.
         
         Args:
-            scholarship_folder: Path to scholarship folder (e.g., data/Delaney_Wings).
-            outputs_dir: Base outputs directory.
+            scholarship_folder: Path to scholarship config folder (e.g., WAI-general-2025/config/Delaney_Wings).
+            outputs_dir: Base outputs directory. If None, uses global_config.OUTPUTS_DIR.
             schema: Optional workflow schema type/class for beeai-framework.
         """
         # Initialize parent Workflow class with schema (use default if not provided)
         super().__init__(schema=schema or DefaultWorkflowSchema)
         
         self.logger = logging.getLogger(__name__)
-        self.scholarship_folder = scholarship_folder
+        
+        # The scholarship_folder passed in is the CONFIG folder
+        self.config_folder = scholarship_folder
         self.scholarship_name = scholarship_folder.name
-        self.outputs_dir = outputs_dir
+        
+        # Derive the data folder from global config
+        self.data_folder = global_config.get_data_folder(self.scholarship_name)
+        
+        # Use provided outputs_dir or fall back to global config
+        self.outputs_dir = outputs_dir if outputs_dir else global_config.OUTPUTS_DIR
+        
+        # For backwards compatibility, keep scholarship_folder pointing to config
+        self.scholarship_folder = self.config_folder
         
         # Initialize all agents
         self._initialize_agents()
         
         self.logger.info(f"Initialized ScholarshipProcessingWorkflow for {self.scholarship_name}")
+        self.logger.info(f"  Config folder: {self.config_folder}")
+        self.logger.info(f"  Data folder: {self.data_folder}")
+        self.logger.info(f"  Outputs folder: {self.outputs_dir / self.scholarship_name}")
     
     def _initialize_agents(self) -> None:
         """Initialize all processing agents."""
         # Preprocessing agents
         self.attachment_agent = AttachmentAgent()
-        self.application_agent = ApplicationAgent(self.scholarship_folder)
+        self.application_agent = ApplicationAgent(self.config_folder)
 
         # Scoring runner (application/resume/essay/recommendation)
-        self.scoring_runner = ScoringRunner(self.scholarship_folder, self.outputs_dir)
+        # Pass config folder - scoring runner will derive data paths from config
+        self.scoring_runner = ScoringRunner(self.config_folder, self.outputs_dir)
         
         # Only SummaryAgent takes outputs_dir and scholarship_folder
         self.summary_agent = SummaryAgent(
             self.outputs_dir,
-            self.scholarship_folder
+            self.config_folder
         )
     
     def _run_stage(
@@ -228,7 +251,8 @@ class ScholarshipProcessingWorkflow(Workflow):
         start_time = time.time()
         stages = []
         
-        scholarship_folder_str = str(self.scholarship_folder)
+        # Use data folder for attachment agent (where application files are)
+        data_folder_str = str(self.data_folder)
 
         # Stage 1: Application extraction (must be first to extract applicant info)
         self.logger.info("Stage 1: Application extraction...")
@@ -262,7 +286,7 @@ class ScholarshipProcessingWorkflow(Workflow):
                 "attachments",
                 self.attachment_agent.process_single_wai,
                 wai_number,
-                scholarship_folder_str,
+                data_folder_str,  # Use data folder for input files
                 str(self.outputs_dir),
                 model,
                 fallback_model,
@@ -349,8 +373,9 @@ class ScholarshipProcessingWorkflow(Workflow):
         self.logger.info("Running Preflight Check")
         self.logger.info("="*60)
         
+        # Preflight checks the DATA folder (where application files are)
         result = run_preflight_check(
-            scholarship_folder=self.scholarship_folder,
+            scholarship_folder=self.data_folder,
             wai_numbers=wai_numbers,
             max_applicants=max_applicants,
             required_attachments=required_attachments,
@@ -509,21 +534,19 @@ class ScholarshipProcessingWorkflow(Workflow):
         return results
     
     def _discover_applicants(self) -> List[str]:
-        """Discover all applicant WAI numbers in the scholarship folder.
+        """Discover all applicant WAI numbers in the data folder.
         
         Returns:
             List of WAI numbers.
         """
-        # Look for Applications subfolder
-        applications_folder = self.scholarship_folder / "Applications"
-        
-        if applications_folder.exists() and applications_folder.is_dir():
+        # Data folder contains WAI ID folders directly (no Applications subfolder)
+        if self.data_folder.exists() and self.data_folder.is_dir():
             wai_numbers = [
                 d.name
-                for d in applications_folder.iterdir()
+                for d in self.data_folder.iterdir()
                 if d.is_dir() and not d.name.startswith('.')
             ]
-            self.logger.info(f"Found {len(wai_numbers)} applicants in {applications_folder}")
+            self.logger.info(f"Found {len(wai_numbers)} applicants in {self.data_folder}")
 
             # Sort WAI numbers numerically when possible so that, for example,
             # 58320 and 70015 come before 100439 and 101866, instead of using
@@ -537,7 +560,7 @@ class ScholarshipProcessingWorkflow(Workflow):
 
             return sorted(wai_numbers, key=sort_key)
         
-        self.logger.warning(f"No Applications folder found in {self.scholarship_folder}")
+        self.logger.warning(f"Data folder not found: {self.data_folder}")
         return []
     
     def _generate_summary(self, wai_numbers: List[str]) -> Dict[str, Any]:
@@ -585,6 +608,8 @@ class ScholarshipProcessingWorkflow(Workflow):
         """
         return {
             "scholarship": self.scholarship_name,
+            "config_folder": str(self.config_folder),
+            "data_folder": str(self.data_folder),
             "outputs_dir": str(self.outputs_dir),
             "agents": {
                 "attachment": "AttachmentAgent",

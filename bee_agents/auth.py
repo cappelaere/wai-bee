@@ -192,7 +192,7 @@ def load_user_config() -> dict:
         FileNotFoundError: If config file doesn't exist
         ValueError: If config file is invalid
     """
-    config_file = os.environ.get("USER_CONFIG_FILE", "config/users.json")
+    config_file = os.environ.get("USER_CONFIG_FILE", "WAI-general-2025/config/users.json")
     config_path = Path(config_file)
     
     if not config_path.exists():

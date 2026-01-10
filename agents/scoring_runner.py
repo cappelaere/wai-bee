@@ -3,9 +3,9 @@
 This runner executes the scholarship scoring agents (application, resume, essay,
 recommendation) purely from generated scholarship artifacts:
 
-- data/<scholarship>/agents.json
-- data/<scholarship>/prompts/*.txt
-- data/<scholarship>/schemas_generated/*.schema.json
+- WAI-general-2025/config/<scholarship>/agents.json
+- WAI-general-2025/config/<scholarship>/prompts/*.txt
+- WAI-general-2025/config/<scholarship>/schemas_generated/*.schema.json
 
 It intentionally does NOT handle preprocessing (attachment) agents.
 """

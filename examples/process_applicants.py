@@ -62,7 +62,7 @@ Examples:
         '--scholarship',
         type=str,
         default='Delaney_Wings',
-        help="Scholarship folder name under data/ (default: 'Delaney_Wings')"
+        help="Scholarship name (e.g., 'Delaney_Wings', 'Evans_Wings')"
     )
     parser.add_argument(
         '--max-applicants',
@@ -73,8 +73,8 @@ Examples:
     parser.add_argument(
         '--outputs-dir',
         type=Path,
-        default=Path("outputs"),
-        help="Base outputs directory (default: 'outputs')"
+        default=None,
+        help="Base outputs directory (default: uses config OUTPUTS_DIR)"
     )
     parser.add_argument(
         '--model',
@@ -129,22 +129,25 @@ Examples:
     
     args = parser.parse_args()
     
-    # Get scholarship folder
-    scholarship_folder = config.get_scholarship_folder(args.scholarship)
+    # Get scholarship config folder
+    scholarship_folder = config.get_config_folder(args.scholarship)
     if not scholarship_folder:
         print(f"Error: Unknown scholarship '{args.scholarship}'")
         print("Available scholarships: Delaney_Wings, Evans_Wings")
         sys.exit(1)
     
     if not scholarship_folder.exists():
-        print(f"Error: Scholarship folder does not exist: {scholarship_folder}")
+        print(f"Error: Scholarship config folder does not exist: {scholarship_folder}")
         sys.exit(1)
     
+    # Use default outputs dir from config if not provided
+    outputs_dir = args.outputs_dir if args.outputs_dir else config.OUTPUTS_DIR
+    
     # Setup logging: console + timestamped file for this workflow run
-    log_dir = Path("logs")
+    log_dir = config.get_logs_folder(args.scholarship)
     log_dir.mkdir(parents=True, exist_ok=True)
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    log_file = log_dir / f"process_{args.scholarship}_{timestamp}.log"
+    log_file = log_dir / f"process_{timestamp}.log"
     
     setup_logging(log_file=str(log_file), force=True)
     logger = get_logger(__name__)
@@ -152,13 +155,14 @@ Examples:
     logger.info("="*60)
     logger.info(f"Processing {args.max_applicants} Applicants - {args.scholarship}")
     logger.info("="*60)
-    logger.info(f"Scholarship folder: {scholarship_folder}")
-    logger.info(f"Outputs directory: {args.outputs_dir / args.scholarship}")
+    logger.info(f"Config folder: {scholarship_folder}")
+    logger.info(f"Data folder: {config.get_data_folder(args.scholarship)}")
+    logger.info(f"Outputs directory: {outputs_dir / args.scholarship}")
     
     # Initialize workflow
     workflow = ScholarshipProcessingWorkflow(
         scholarship_folder=scholarship_folder,
-        outputs_dir=args.outputs_dir
+        outputs_dir=outputs_dir
     )
     
     skip_stages_list = [s.strip() for s in (args.skip_stages or "").split(",") if s.strip()]
@@ -210,7 +214,7 @@ Examples:
             logger.info(f"  Complete applications: {summary['complete_applications']}/{summary['total_applicants']}")
     
     logger.info("\n" + "="*60)
-    logger.info(f"Check {args.outputs_dir / args.scholarship} for results")
+    logger.info(f"Check {outputs_dir / args.scholarship} for results")
     logger.info("="*60)
 
 

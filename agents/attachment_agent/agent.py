@@ -6,8 +6,12 @@ and saves redacted text files.
 
 Author: Pat G Cappelaere, IBM Federal Consulting
 Created: 2025-12-05
-Version: 1.0.0
+Version: 2.0.0 - Updated for WAI-general-2025 folder structure
 License: MIT
+
+Folder Structure (WAI-general-2025/):
+    - data/{scholarship}/{WAI-ID}/     Application files (PDFs, etc.)
+    - output/{scholarship}/{WAI-ID}/   Processing outputs including attachments/
 
 Example:
     Basic usage of the Attachment Agent::
@@ -15,14 +19,13 @@ Example:
         from agents.attachment_agent import AttachmentAgent
         
         agent = AttachmentAgent()
-        result = agent.process_attachments(
-            scholarship_folder="data/Delaney_Wings/Applications",
-            max_wai_folders=10,
-            max_files_per_folder=5,
-            model="ollama/llama3.2:1b"
+        result = agent.process_single_wai(
+            wai_number="75179",
+            scholarship_folder="WAI-general-2025/data/Delaney_Wings",
+            output_dir="WAI-general-2025/output"
         )
         
-        print(f"Processed: {result.successful}/{result.total}")
+        print(f"Success: {result}")
 
 Attributes:
     logger: Module-level logger instance for logging operations.
@@ -49,6 +52,7 @@ from utils.document_parser import (
 )
 from utils.pii_remover import remove_pii_with_retry
 from utils.text_writer import save_redacted_text, create_processing_summary
+from utils.config import config as global_config
 
 logger = logging.getLogger(__name__)
 
@@ -134,20 +138,24 @@ class AttachmentAgent:
         from pathlib import Path
         
         # Determine scholarship folder if not provided
+        # scholarship_folder should be the DATA folder path (WAI-general-2025/data/{scholarship})
         if scholarship_folder is None:
-            for base in ["data/Delaney_Wings", "data/Evans_Wings"]:
-                wai_folder = Path(base) / "Applications" / wai_number
+            # Try to find in the data folder
+            for scholarship_name in ["Delaney_Wings", "Evans_Wings"]:
+                data_folder = global_config.get_data_folder(scholarship_name)
+                wai_folder = data_folder / wai_number
                 if wai_folder.exists():
-                    scholarship_folder = base
+                    scholarship_folder = str(data_folder)
                     break
         
         if scholarship_folder is None:
-            logger.error(f"Could not find scholarship folder for WAI {wai_number}")
+            logger.error(f"Could not find data folder for WAI {wai_number}")
             return False
         
         scholarship_path = Path(scholarship_folder)
         scholarship_name = scholarship_path.name
-        wai_folder = scholarship_path / "Applications" / wai_number
+        # In the new structure, WAI folders are directly under the data folder (no Applications subfolder)
+        wai_folder = scholarship_path / wai_number
         
         if not wai_folder.exists():
             logger.error(f"WAI folder does not exist: {wai_folder}")
@@ -190,8 +198,8 @@ class AttachmentAgent:
         PII, and saves redacted text files.
         
         Args:
-            scholarship_folder (str): Path to the scholarship applications folder.
-                Example: "data/Delaney_Wings/Applications"
+            scholarship_folder (str): Path to the scholarship data folder.
+                Example: "WAI-general-2025/data/Delaney_Wings"
             max_wai_folders (Optional[int]): Maximum number of WAI folders to
                 process. If None, processes all folders. Defaults to None.
             max_files_per_folder (int): Maximum number of attachment files to
@@ -223,7 +231,7 @@ class AttachmentAgent:
         Example:
             >>> agent = AttachmentAgent()
             >>> result = agent.process_attachments(
-            ...     scholarship_folder="data/Delaney_Wings/Applications",
+            ...     scholarship_folder="WAI-general-2025/data/Delaney_Wings",
             ...     max_wai_folders=5,
             ...     max_files_per_folder=5,
             ...     model="ollama/llama3.2:1b",
@@ -243,9 +251,9 @@ class AttachmentAgent:
         result = AttachmentResult(total=0, successful=0, failed=0)
         result.start_time = time.time()
         
-        # Extract scholarship name from path
+        # Extract scholarship name from path (data folder is: WAI-general-2025/data/{scholarship})
         scholarship_path = Path(scholarship_folder)
-        scholarship_name = scholarship_path.parent.name
+        scholarship_name = scholarship_path.name
         
         try:
             # Scan for WAI folders

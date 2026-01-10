@@ -67,12 +67,12 @@ from .api_utils import data_services, get_data_service, get_scholarship_config_p
 
 
 def load_available_scholarships() -> List[str]:
-    """Load available scholarships from config/users.json.
+    """Load available scholarships from WAI-general-2025/config/users.json.
     
     Returns:
         List of enabled scholarship identifiers
     """
-    config_path = Path("config/users.json")
+    config_path = Path("WAI-general-2025/config/users.json")
     if not config_path.exists():
         logger.warning(f"User config file not found: {config_path}, using defaults")
         return ["Delaney_Wings", "Evans_Wings"]

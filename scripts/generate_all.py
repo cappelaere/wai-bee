@@ -12,7 +12,7 @@ This script orchestrates:
 4) Document generation
 
 USAGE:
-    python scripts/generate_all.py data/<scholarship-id>
+    python scripts/generate_all.py WAI-general-2025/config/<scholarship-id>
 """
 
 import sys

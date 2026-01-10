@@ -57,3 +57,6 @@ logs/
 .pytest_cache/
 .coverage
 htmlcov/wai-bee-env
+
+WAI-Harvard-2026/
+WAI-general-2025/

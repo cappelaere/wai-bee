@@ -5,7 +5,7 @@ typed access to configuration values with sensible defaults.
 
 Author: Pat G Cappelaere, IBM Federal Consulting
 Created: 2025-12-06
-Version: 1.0.0
+Version: 2.0.0 - Updated for WAI-general-2025 folder structure
 License: MIT
 """
 
@@ -24,12 +24,18 @@ class Config:
     Loads configuration from environment variables with fallback defaults.
     All values are loaded once at module import time.
     
+    Folder Structure (WAI-general-2025/):
+        - data/{scholarship}/{WAI-ID}/     Application files (PDFs, etc.)
+        - config/{scholarship}/            Config files (config.yml, agents.json, prompts/, schemas_generated/)
+        - output/{scholarship}/{WAI-ID}/   Processing outputs (analysis JSON files)
+        - logs/                            Processing logs
+    
     Example:
         >>> from utils.config import config
         >>> print(config.PRIMARY_MODEL)
         'ollama/llama3.2:1b'
-        >>> print(config.MAX_RETRIES)
-        3
+        >>> print(config.get_config_folder("Delaney_Wings"))
+        WAI-general-2025/config/Delaney_Wings
     """
     
     # LLM Configuration
@@ -59,9 +65,14 @@ class Config:
     ENABLE_PARALLEL: bool = os.getenv("ENABLE_PARALLEL", "true").lower() == "true"
     MAX_WORKERS: int = int(os.getenv("MAX_WORKERS", "3"))
     
-    # Directory Configuration
-    DATA_DIR: Path = Path(os.getenv("DATA_DIR", "data"))
-    OUTPUTS_DIR: Path = Path(os.getenv("OUTPUTS_DIR", "outputs"))
+    # Directory Configuration - WAI-general-2025 structure
+    BASE_DIR: Path = Path(os.getenv("WAI_BASE_DIR", "WAI-general-2025"))
+    DATA_DIR: Path = BASE_DIR / "data"
+    CONFIG_DIR: Path = BASE_DIR / "config"
+    OUTPUTS_DIR: Path = BASE_DIR / "output"
+    LOGS_DIR: Path = BASE_DIR / "logs"
+    
+    # Project-level directories (not under WAI-general-2025)
     SCHEMAS_DIR: Path = Path(os.getenv("SCHEMAS_DIR", "schemas"))
     TEMPLATES_DIR: Path = Path(os.getenv("TEMPLATES_DIR", "templates"))
     
@@ -73,30 +84,135 @@ class Config:
     
     # Logging Configuration
     LOG_LEVEL: str = os.getenv("LOG_LEVEL", "INFO")
-    LOG_FILE: Optional[str] = os.getenv("LOG_FILE", "logs/wai_processing.log")
+    LOG_FILE: Optional[str] = os.getenv("LOG_FILE", str(BASE_DIR / "logs" / "wai_processing.log"))
     LOG_FORMAT: str = os.getenv(
         "LOG_FORMAT",
         "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
     )
     
     @classmethod
-    def get_scholarship_folder(cls, scholarship_name: str) -> Path:
-        """Get scholarship folder path by name.
+    def get_data_folder(cls, scholarship_name: str) -> Path:
+        """Get data folder path for a scholarship (application files).
         
-        All scholarships are stored in subdirectories under DATA_DIR.
+        Args:
+            scholarship_name: Name of scholarship (e.g., "Delaney_Wings").
+        
+        Returns:
+            Path to data folder (DATA_DIR / scholarship_name).
+        
+        Example:
+            >>> folder = Config.get_data_folder("Delaney_Wings")
+            >>> print(folder)
+            WAI-general-2025/data/Delaney_Wings
+        """
+        return cls.DATA_DIR / scholarship_name
+    
+    @classmethod
+    def get_config_folder(cls, scholarship_name: str) -> Path:
+        """Get config folder path for a scholarship (config.yml, agents.json, prompts/, schemas_generated/).
+        
+        Args:
+            scholarship_name: Name of scholarship (e.g., "Delaney_Wings").
+        
+        Returns:
+            Path to config folder (CONFIG_DIR / scholarship_name).
+        
+        Example:
+            >>> folder = Config.get_config_folder("Delaney_Wings")
+            >>> print(folder)
+            WAI-general-2025/config/Delaney_Wings
+        """
+        return cls.CONFIG_DIR / scholarship_name
+    
+    @classmethod
+    def get_output_folder(cls, scholarship_name: str) -> Path:
+        """Get output folder path for a scholarship (processing results).
+        
+        Args:
+            scholarship_name: Name of scholarship (e.g., "Delaney_Wings").
+        
+        Returns:
+            Path to output folder (OUTPUTS_DIR / scholarship_name).
+        
+        Example:
+            >>> folder = Config.get_output_folder("Delaney_Wings")
+            >>> print(folder)
+            WAI-general-2025/output/Delaney_Wings
+        """
+        return cls.OUTPUTS_DIR / scholarship_name
+    
+    @classmethod
+    def get_scholarship_folder(cls, scholarship_name: str) -> Path:
+        """Get scholarship config folder path by name.
+        
+        This is the primary folder containing config.yml and other configuration.
+        For backwards compatibility, this returns the config folder.
         
         Args:
             scholarship_name: Name of scholarship (e.g., "Delaney_Wings", "Evans_Wings").
         
         Returns:
-            Path to scholarship folder (DATA_DIR / scholarship_name).
+            Path to scholarship config folder (CONFIG_DIR / scholarship_name).
         
         Example:
             >>> folder = Config.get_scholarship_folder("Delaney_Wings")
             >>> print(folder)
-            data/Delaney_Wings
+            WAI-general-2025/config/Delaney_Wings
         """
-        return cls.DATA_DIR / scholarship_name
+        return cls.get_config_folder(scholarship_name)
+    
+    @classmethod
+    def get_applicant_data_folder(cls, scholarship_name: str, wai_id: str) -> Path:
+        """Get applicant data folder (input application files).
+        
+        Args:
+            scholarship_name: Name of scholarship.
+            wai_id: WAI applicant ID.
+        
+        Returns:
+            Path to applicant data folder.
+        
+        Example:
+            >>> folder = Config.get_applicant_data_folder("Delaney_Wings", "75179")
+            >>> print(folder)
+            WAI-general-2025/data/Delaney_Wings/75179
+        """
+        return cls.DATA_DIR / scholarship_name / wai_id
+    
+    @classmethod
+    def get_logs_folder(cls, scholarship_name: str) -> Path:
+        """Get logs folder path for a scholarship.
+        
+        Args:
+            scholarship_name: Name of scholarship (e.g., "Delaney_Wings").
+        
+        Returns:
+            Path to logs folder (LOGS_DIR / scholarship_name).
+        
+        Example:
+            >>> folder = Config.get_logs_folder("Delaney_Wings")
+            >>> print(folder)
+            WAI-general-2025/logs/Delaney_Wings
+        """
+        return cls.LOGS_DIR / scholarship_name
+    
+    @classmethod
+    def get_applicant_output_folder(cls, scholarship_name: str, wai_id: str) -> Path:
+        """Get applicant output folder (processing results).
+        
+        Args:
+            scholarship_name: Name of scholarship.
+            wai_id: WAI applicant ID.
+        
+        Returns:
+            Path to applicant output folder.
+        
+        Example:
+            >>> folder = Config.get_applicant_output_folder("Delaney_Wings", "75179")
+            >>> print(folder)
+            WAI-general-2025/output/Delaney_Wings/75179
+        """
+        return cls.OUTPUTS_DIR / scholarship_name / wai_id
     
     @classmethod
     def validate(cls) -> List[str]:
@@ -113,8 +229,14 @@ class Config:
         errors = []
         
         # Check required directories exist
+        if not cls.BASE_DIR.exists():
+            errors.append(f"Base directory does not exist: {cls.BASE_DIR}")
+        
         if not cls.DATA_DIR.exists():
             errors.append(f"Data directory does not exist: {cls.DATA_DIR}")
+        
+        if not cls.CONFIG_DIR.exists():
+            errors.append(f"Config directory does not exist: {cls.CONFIG_DIR}")
         
         if not cls.SCHEMAS_DIR.exists():
             errors.append(f"Schemas directory does not exist: {cls.SCHEMAS_DIR}")
@@ -154,8 +276,11 @@ class Config:
         print(f"  SKIP_PROCESSED: {cls.SKIP_PROCESSED}")
         print(f"  ENABLE_PARALLEL: {cls.ENABLE_PARALLEL}")
         print(f"  MAX_WORKERS: {cls.MAX_WORKERS}")
+        print(f"  BASE_DIR: {cls.BASE_DIR}")
         print(f"  DATA_DIR: {cls.DATA_DIR}")
+        print(f"  CONFIG_DIR: {cls.CONFIG_DIR}")
         print(f"  OUTPUTS_DIR: {cls.OUTPUTS_DIR}")
+        print(f"  LOGS_DIR: {cls.LOGS_DIR}")
         print(f"  PII_SCORE_THRESHOLD: {cls.PII_SCORE_THRESHOLD}")
         print(f"  LOG_LEVEL: {cls.LOG_LEVEL}")
 
